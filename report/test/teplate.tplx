@@ -1,0 +1,17 @@
+((*- extends 'article.tplx' -*))
+
+((* block author *))
+\author{Ruth Gómez Graciani}
+((* endblock author *))
+
+((* block title *))
+\title{%
+	Location patterns 1 \\
+	\large{Inversions position depending on chromosome characteristics}
+}
+((* endblock title *))
+
+((* block bibliography *))
+\bibliographystyle{unsrt}
+\bibliography{ipython}
+((* endblock bibliography *))
