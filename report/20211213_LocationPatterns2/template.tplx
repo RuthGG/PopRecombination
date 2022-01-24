@@ -1,0 +1,18 @@
+((*- extends 'article.tplx' -*))
+
+((* block author *))
+\author{Ruth Gómez Graciani}
+((* endblock author *))
+
+((* block title *))
+\title{%
+	Association test between Inversions and \\
+	Extreme Recombination Rates  \\
+	\large{Location patterns 2}
+}
+((* endblock title *))
+
+((* block bibliography *))
+\bibliographystyle{unsrt}
+\bibliography{references}
+((* endblock bibliography *))

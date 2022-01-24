@@ -15,3 +15,7 @@ for i in $(ls data/raw/Refined_genetic_map_b37/sexavg_chr*); do tail -n1 $i; don
 # while in the main dir
 for i in $(ls data/raw/Refined_genetic_map_b37/sexavg_chr*); do tail -n+2 $i >> data/use/BhererAllChroms.txt; done 
 ```
+
+# CEU_SRR.bed
+
+SRRs calculated for CEU population from Spence and Song, just to make a test about how extreme is SRR>10
