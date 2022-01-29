@@ -1,5 +1,4 @@
-data/raw/*
-data/use/*
+data/*
 tmp/*
-!data/raw/README.md
-!data/use/README.md
+!data/README.md
+
