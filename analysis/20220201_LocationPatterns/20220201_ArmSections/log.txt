@@ -1,0 +1,17 @@
+2022-02-01 18:50:36,094 - Starting ArmSections.py
+2022-02-01 18:50:36,094 - Parameters
+
+    inversions              : data/InversionsAnnotation_131Inv_20211117.csv
+    repeats                 : data/genomicSuperDups.txt
+    pedigree-based map      : data/Bherer_Refined_genetic_map_b37_procesed/BhererAllChroms.txt
+    likelihood-based map    : data/SpenceSong_hg19_recMaps_processed/CEU_SRR.bed
+    band file               : data/cytoBand.txt
+    numer of windows        : 5 
+    output directory        : analysis/20220201_LocationPatterns/20220201_ArmSections
+
+2022-02-01 18:50:36,094 - Loading data
+2022-02-01 18:50:37,848 - Calculating theoretical chromosome limits
+2022-02-01 18:50:37,855 - Calculating actual chromosome limits
+2022-02-01 18:50:46,744 - Dividing chromosome arms into 5 sections 
+2022-02-01 18:50:46,794 - Calculating variables for each window
+2022-02-01 18:51:06,185 - Finished
