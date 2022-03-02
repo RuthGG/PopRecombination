@@ -35,9 +35,15 @@ tar -zxvf hg19_maps.tar.gz
 ```
 ## Processed Spence maps (SpenceSong_hg19_recMaps_processed/)
 
-### CEU_SRR.bed
+Al chromosome bed files calculated for each population from Spence and Song
 
-SRRs calculated for CEU population from Spence and Song, just to make a test about how extreme is SRR>10
+```
+cd data/
+for POP in $(ls SpenceSong_hg19_recMaps/); do 
+	for FILE in $(ls SpenceSong_hg19_recMaps/${POP}/${POP}_recombination_map_hg19_chr_*.bed)
+	tail -n+2 $FILE >> SpenceSong_hg19_recMaps_processed/${POP}_recombination_map_hg19_allChr.bed
+done
+```
 
 # chrSizes.txt
 
