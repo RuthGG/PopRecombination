@@ -1,0 +1,342 @@
+---
+title: "Analysis of the patterns in inversions location"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+bibliography: report/20220129_LocationPatterns/references.bib 
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+
+# Objectives
+
+Inversions can be classified in two groups depending on their generation process: two relatively close breaks that are repaired in opposite orientations by non-homologous mechanisms (which we call NH inversions), or non-allelic homologous recombination between inverted repeats (NAHR inversions). These two groups have differences regarding important characteristics such as size, location  and divergence between orientations. NH inversions are smaller, can appear anywhere in the genome and are unique, which causes a marked divergence between opposite orientations as time goes by. NAHR inversions appear under the specific conditions of having inverted repeats at a certain distance, but can be much bigger than NH inversions and can be generated more than once throughout the history of a population, which leads to less divergence between orientations [@Aguado2014; @Giner-Delgado2019].
+
+In addition, inversions generate aberrant chromosomes and unviable zygotes if a recombination event takes place within the region during meiosis. Thus, they are expected to have better chances of reaching polymorphism in low recombination regions. On the other hand, a higher incidence of NAHR events can be expected in high recombination regions [@Sasaki2010]. 
+
+In this notebook, I explore whether inversions are evenly distributed among chromosomes and which variables affect the generation and/or maintenance of inversions as polymorphisms in certain regions of the genome. 
+
+[[[[ ADD SUMMARY OF WHAT I WILL DO ]]]]
+
+```{r}
+library(ggplot2)
+library(ggbio)
+library(GenomicRanges)
+library(reshape2)
+library(patchwork)
+data(ideoCyto, package = "biovizBase")
+```
+
+# Large-scale patterns
+
+## Workspace and windows definition 
+
+The term 'workspace' refers to the genomic regions suitable for analysis. To define it, we calculated the first and last coordinates from each chromosome arm to have estimations for all the recombination maps included in the analysis. We excluded the windows overlapping with the centromere, which are usually very large due to the lower data availability when estimating recombination maps, and thus we considered to be less reliable. 
+
+Once the workspace is defined, each arm is divided into an equal number of windows, generating window sizes proportional to arm size that allow us to have physical size as a variable. In addition, for each window we calculate inversion center point overlap, repeat center point overlap, and mean recombination rate (both simple and map window size weighted means).
+
+```
+python code/python/ArmSections.py -i data/InversionsAnnotation_131Inv_20211117.csv -r data/genomicSuperDups.txt -p data/Bherer_Refined_genetic_map_b37_procesed/BhererAllChroms.txt -l data/SpenceSong_hg19_recMaps_processed/CEU_SRR.bed -b data/cytoBand.txt -f 5 -o "analysis/$(date +'%Y%m%d')_LocationPatterns"
+```
+
+
+```{r  Load Data}
+dateAnalysis <- "20220217"
+dateArmSections <-"20220217"
+
+theoryLimits <-read.table(paste0("analysis/",dateAnalysis,"_LocationPatterns/",dateArmSections,"_ArmSections/theoreticalChromosomeLimits.csv"), 
+                          sep = "\t", header = T)
+dataLimits <- read.table(paste0("analysis/",dateAnalysis,"_LocationPatterns/",dateArmSections,"_ArmSections/actualChromosomeLimits.csv"), 
+                         sep = "\t", header = T)
+windowData <- read.table(paste0("analysis/",dateAnalysis,"_LocationPatterns/",dateArmSections,"_ArmSections/windowData.csv"), 
+                         sep = "\t", header= T)
+```
+
+```{r Show effective workspace}
+mergedLimits <- merge(theoryLimits, dataLimits, by = "chromID", suffixes = c("_theory", "_data") , all = TRUE)
+mergedLimits <- mergedLimits[complete.cases(mergedLimits),]
+
+# ARM REGIONS 
+arms.GR<-makeGRangesFromDataFrame(mergedLimits, ignore.strand = T, start.field = "Start_data", end.field = "End_data" , seqnames.field = "chrom")
+
+# ORIGIN OF LIMITS
+viewWidth = 100000
+mergedLimits$Start_data_end <- mergedLimits$Start_data + viewWidth
+mergedLimits$End_data_start <- mergedLimits$End_data - viewWidth
+
+limits.GR <-makeGRangesFromDataFrame(
+  rbind(
+  setNames(data.frame(mergedLimits[ ,c("chrom", "Start_data","Start_data_end",  "sourceStart")]), c("chrom","Start","End", "Source")) ,
+  setNames(data.frame(mergedLimits[,c("chrom", "End_data_start", "End_data", "sourceEnd")]), c("chrom","Start", "End","Source"))
+  ),
+  keep.extra.columns = TRUE)
+
+autoplot(ideoCyto$hg19, layout = "karyogram", cytobands = TRUE)+
+  layout_karyogram(data = arms.GR, geom = "rect", ylim = c(0, 10), fill = "#91b5b5", alpha = 0.5)+
+  layout_karyogram(data = limits.GR, geom = "rect", ylim = c(0, 10), aes(color = Source), alpha = 0, size = 1)+
+  guides(fill = FALSE)+
+  scale_color_manual("Source", values =c("Bherer" = "purple", "Spence" = "green"))+
+  ggtitle("Effective workspace")
+
+```
+
+
+## Exploration of variables
+
+```{r VariableVisualization, fig.width=11, fig.heigth=6, dpi = 300}
+
+# windowData
+windowData$Chromosome <- factor(windowData$Chromosome, levels = paste(rep("chr", 22), as.character(c(1:22)), sep = ""))
+
+windowDataMelted <- melt(windowData, id.vars = c("chromID", "winID", "Chromosome", "Start", "End")) 
+
+windowDataMelted$dataGroup<- ifelse(windowDataMelted$variable %in% c("invCenters", "NHCenters", "NAHRCenters"), "Inversions", 
+                             ifelse(windowDataMelted$variable %in% c("allRepCounts", "intraRepCounts"), "Repeats",
+                             ifelse(windowDataMelted$variable %in% c("BhererRegsNum", "SpenceRegsNum"), "recWindows",
+                             ifelse(windowDataMelted$variable %in% c("BhererRegsMean", "SpenceRegsMean", "BhererRegsWeightMean",
+                                                                     "SpenceRegsWeightMean"), "recMeans", "Length"))))
+
+# Add log repeats
+windowDataMelted_replog <- windowDataMelted[windowDataMelted$dataGroup == "Repeats",]
+windowDataMelted_replog$value <- log10(windowDataMelted_replog$value)
+windowDataMelted_replog$dataGroup <- "Repeats_log10"
+windowDataMelted<- rbind(windowDataMelted, windowDataMelted_replog)
+
+
+plot_list<-list()
+for (group in unique(windowDataMelted$dataGroup)) {
+  
+  plotTable <- windowDataMelted[(windowDataMelted$value != -Inf) & (windowDataMelted$dataGroup == group),]
+  plot_list[[group]] <- ggplot(plotTable, aes(x = variable, y = value))+
+    # Half violin
+      ggdist::stat_halfeye(adjust = .5, width = .6, .width = 0, justification = -.2, point_colour = NA) +
+    # Boxplot 
+      geom_boxplot(width = .1, outlier.shape = NA) +
+    # Points
+      gghalves::geom_half_point_panel(side = "l", range_scale = .6,  alpha = .5, aes(color = Chromosome))+
+      scale_color_manual(values = c(rep("#3c7ae7",11),rep("#89b23e",11) ))+
+    # Adjust coordinates
+      coord_flip()+
+      # coord_flip( xlim = c(1.3, NA))+
+    # Adjust labels
+      theme(axis.title.y = element_blank(), legend.position = "none")+
+    # Title
+      ggtitle(group)
+}
+```
+
+
+
+```{r VariableVisualizationPlot, fig.height=11, fig.width=20}
+
+wrap_plots(plot_list)
+```
+
+
+```{r examples}
+#-----------------------------#
+# # Plot
+# # Function to calculate number of observations
+# n_fun <- function(x){
+#   return(data.frame(y = median(x)*1.5, 
+#                     label = paste0("n = ",length(x))))
+# }
+# 
+# library(ggdist)
+# library(viridis)
+# ggplot(windowDataMelted[(windowDataMelted$value != -Inf) & (windowDataMelted$dataGroup %in% c("Inversions")),], aes(x = variable, y = value ))+
+#   # facet_wrap(dataGroup+variable~., scales="free")+
+#   # RAINCLOUD PLOT  # https://www.cedricscherer.com/2021/06/06/visualizing-distributions-with-raincloud-plots-and-how-to-create-them-with-ggplot2/#back2
+#     # Half violin
+#       ggdist::stat_halfeye(adjust = .5, width = .6, .width = 0, justification = -.15, point_colour = NA) + 
+#     # Boxplot 
+#       geom_boxplot(width = .10, outlier.shape = NA) +
+#     # Points (1 line = 1 option)
+#       # geom_point(size = 1.3,alpha =.5,position = position_jitter(seed =  1, width = .04) , aes(color = Chromosome) ) + # this works for chormosomes
+#       # ggdist::stat_dots(side = "left", justification = 1.1, binwidth = 3e+05  )+ # rain
+#       # gghalves::geom_half_point(side = "l", range_scale = .5, alpha = .3)+
+#       # geom_point(shape = 124 ,size = 10,alpha = .2, aes(color = Chromosome)) + # shape 124 in horizontal and 95 in vertical, this works for chormosomes
+#   # Adjust coordinates
+#     coord_flip( xlim = c(1.3, NA))+
+#     # coord_flip()+
+#   # Adjust colors
+#     # scale_color_viridis(discrete = TRUE)
+#     scale_color_manual(values = c(rep("#3c7ae7",11),rep("#89b23e",11) ) )+
+#   # Title
+#     ggtitle("Raincloud plot")
+#     
+```
+
+```{r distrbutionFitting}
+
+# Do I need this? 
+
+# library(fitdistrplus)
+# library(logspline)
+# 
+# 
+# fit_list<-list()
+# for (group in unique(windowDataMelted$variable)) {
+#   
+# descdist(windowData$BhererRegsWeightMean, discrete =  ifelse(grepl("Mean" , group ), FALSE, TRUE), boot = 1000)
+# }
+# 
+
+
+```
+
+
+## Multiple linear regression
+
+```{r tutorialModel}
+# We will use the variables inversions (all), repeats (all), weighted mean, window length
+windowData$chromSection <- ifelse(grepl("p0|q4",windowData$winID), "Telomere", "Arm")
+
+lmData<-windowData[,c("NAHRCenters", "allRepCounts", "BhererRegsWeightMean", "Length.bp.")]
+rownames(lmData)<-windowData$winID
+head(lmData)
+
+# Visualze the relationship between these four
+ggplot(lmData)+aes(x = Length.bp., y = NAHRCenters, size = BhererRegsWeightMean, color = allRepCounts)+geom_point() + scale_color_gradient()
+
+# Make model
+model<-lm(log10(allRepCounts) ~   BhererRegsWeightMean +  Length.bp. +  BhererRegsWeightMean:Length.bp. + as.factor(chromSection), data = windowData)
+summary(model)
+
+# Test model correctness
+# install.packages("performance")
+# install.packages("see")
+library(performance)
+
+check_model(model)
+
+##### ORDINAL LINEAR REGRESSION - https://www.r-bloggers.com/2019/06/how-to-perform-ordinal-logistic-regression-in-r/
+# Ordinal logistic models consider the probability of an event and all the events that are below the focal event in the ordered hierarchy.
+# Independent variables can be measured on nominal, ordinal or continuous measurement scale, but must not be collinear.
+mData<-windowData[,c( "invCenters",  "allRepCounts", "Length.bp.", "BhererRegsWeightMean", "chromSection")]
+rownames(mData)<-windowData$winID
+mData$invCenters <- factor(mData$invCenters, ordered = TRUE)
+mData$chromSection<-factor(mData$chromSection,  ordered = TRUE, labels = c("0", "1"))
+
+# Summaries / Multicollinearity
+
+summary(mData)
+table(mData$invCenters, mData$chromSection)
+
+library(corrplot)
+toPlotCorx = cor(as.matrix(mData))
+testResx = cor.mtest(mData, conf.level = 0.95)
+corrplot(toPlotCorx,  p.mat = testResx$p, sig.level = c(0.001, 0.01, 0.05), tl.col = "black", pch.cex = 0.9, insig = 'label_sig', type = "lower", method = "square", col = COL2('PRGn'), diag = FALSE)
+
+#Dividing data into training and test set
+#Random sampling 
+samplesize = 0.60*nrow(mData)
+set.seed(100)
+index = sample(seq_len(nrow(mData)), size = samplesize)
+#Creating training and test set 
+datatrain = mData[index,]
+datatest = mData[-index,]
+
+#Build ordinal logistic regression model
+model= polr(invCenters ~ allRepCounts + Length.bp. , data = datatrain, Hess = TRUE)
+summary(model)   
+
+```
+# Fine-scale patterns
+
+## Description of variables
+
+### Segments
+
+### Annotations
+
+### Isochores
+
+To make a repeats isochore, I should be able to differentiate between "high" and "low" repeat regions. 
+
+1. Make smaller windows
+```
+python code/python/ArmSections.py -i data/InversionsAnnotation_131Inv_20211117.csv -r data/genomicSuperDups.txt -p data/Bherer_Refined_genetic_map_b37_procesed/BhererAllChroms.txt -l data/SpenceSong_hg19_recMaps_processed/CEU_SRR.bed -b data/cytoBand.txt -f 100 -o "analysis/$(date +'%Y%m%d')_LocationPatterns2_smallWins"
+```
+
+2. Look at the distribution of smaller windows
+```{r}
+library(ggplot2)
+dateAnalysis <- "20220217"
+# dateArmSections <-"20220301"
+dateArmSections <-"20220217"
+# windowData <- read.table(paste0("analysis/",dateAnalysis,"_LocationPatterns2_smallWins/",dateArmSections,"_ArmSections/windowData.csv"), 
+#                          sep = "\t", header= T)
+windowData <- read.table(paste0("analysis/",dateAnalysis,"_LocationPatterns/",dateArmSections,"_ArmSections/windowData.csv"), 
+                         sep = "\t", header= T)
+
+windowData$Chromosome <- factor(windowData$Chromosome, levels = paste(rep("chr", 22), as.character(c(1:22)), sep = ""))
+windowData$repDensity<- windowData$allRepCounts / windowData$Length.bp.
+
+# Distribution of variable
+summary(windowData$repDensity)
+ggplot(windowData, aes(x = repDensity))+geom_histogram()
+# It seems that "no repeats" could be the low repeat category...
+
+# Mark the threshold (we are searching for one that is more or less continuous and does not divide chromosomes into many chunks)
+# Distribution along chromosomes
+# ggplot(windowData[windowData$Chromosome == "chr9",])+
+ggplot(windowData)+
+  geom_rect(aes(xmin = Start,xmax = End, ymin = 0, ymax = repDensity))+
+  facet_wrap(Chromosome  ~., scales = "free")
+# I cannot see much, actually... 
+
+# Maybe see if there is a difference between inversion type in window and repeat count?
+
+# Range of NH inversions
+NHsumm <- summary(windowData[windowData$NHCenters > 0,"repDensity"])
+NAHRsumm <- summary(windowData[windowData$NAHRCenters > 0,"repDensity"])
+rbind(NHsumm, NAHRsumm)
+
+onlyInvs<-windowData[windowData$invCenters >0,]
+onlyInvs$category<-ifelse(onlyInvs$NAHRCenters > 0, ifelse(onlyInvs$NHCenters > 0, "Mixt", "NAHR"), ifelse(onlyInvs$NHCenters > 0, "NH", "Error") )
+
+ggplot(onlyInvs)+geom_boxplot(aes(x = category,y = log10(repDensity)))
+ggplot(onlyInvs)+geom_boxplot(aes(x = category,y = repDensity))
+
+ggplot(onlyInvs, aes(x = category, y = repDensity))+
+# ggplot(onlyInvs, aes(x = category, y = log10(repDensity)))+
+    # Half violin
+      ggdist::stat_halfeye(adjust = .5, width = .6, .width = 0, justification = -.2, point_colour = NA) +
+    # Boxplot 
+      geom_boxplot(width = .1, outlier.shape = NA) +
+    # Points
+      # gghalves::geom_half_point_panel(side = "l", range_scale = .6,  alpha = .5, aes(color = Chromosome))+
+      # scale_color_manual(values = c(rep("#3c7ae7",11),rep("#89b23e",11) ))+
+  gghalves::geom_half_point_panel(side = "l", range_scale = 2,  alpha = .5, aes(color = factor(NAHRCenters)))+
+    # Adjust coordinates
+      coord_flip()+
+      # coord_flip( xlim = c(1.3, NA))+
+    # Adjust labels
+      # theme(axis.title.y = element_blank(), legend.position = "none")+
+    # Title
+      ggtitle("RepeatDensity")
+
+# Worried about unequal representations...
+# Podria ser que la correlación es casualidad? por falta de muestra? que JUSTAMENET las unicas 2 veces en las que tengo >1, estan hacia el extremo de la distribución?
+NAHRCs<- summary(factor(windowData$NAHRCenters))
+NAHRCs["3"] <- 0
+NAHRCs["4"] <- 0
+
+NHCs<- summary(factor(windowData$NHCenters))
+
+rbind(NAHRCs, NHCs)
+
+```
+### Workspace
+
+## GAT run
+
+## GAT results
+
+# References
+
+<div id="refs"></div>
