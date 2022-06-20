@@ -1,0 +1,186 @@
+<!-- # --- -->
+<!-- # title: "Ordinal logistic model on large windows data" - chapter 1 -->
+<!-- # author: "Ruth Gómez Graciani" -->
+<!-- # output: -->
+<!-- #   pdf_document: default -->
+<!-- # header-includes: -->
+<!-- #  \usepackage{float} -->
+<!-- #  \floatplacement{figure}{H} -->
+<!-- # --- -->
+
+```{r, include=FALSE}
+if (!require("pacman")) install.packages("pacman")
+# set conditions for code output
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, error=FALSE,fig.pos = "!H")
+showcode=FALSE #for include or echo - echo=showcode // include=showcode
+runbash=FALSE # for eval=runbash
+runR=TRUE #for eval=runR
+```
+
+
+First, we obtain the density distribution, and local minima and maxima for the recombination map. 
+
+<!-- Bash run to make standard windows -->
+
+```{bash, include=showcode, eval=runbash}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+cd /home/rgomez/Documents/PHD_Repos/20211117_PopRecombination/
+NAME="afterMeetingWindows"
+OUTDIR="report/20220519_tutorialLogisticModel/${NAME}/data"
+
+$ENVPY code/python/divideChromosomes.py \
+  -m data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed \
+  -b data/cytoBand.txt -f 0 -s 0.05 -r 800000 -o $OUTDIR -d femBherer
+
+cd report/20220519_tutorialLogisticModel/${NAME}   
+```
+
+<!-- Windows visualization -->
+
+```{r Base-workspace, eval=runR,echo=showcode, fig.cap="Crossover zones; centromeres in blue, workspace limits in orange." ,  fig.height=6}
+# Setup
+pacman::p_load(ggplot2)
+name <-"avgBherer_COzones_0.05_800000"
+divChroms <- paste0("data/divideChromosomes/",name,"/")
+
+  # PATHS
+  windowsFile <- paste0(divChroms,"/windows.txt")
+  densityFile <- paste0(divChroms,"/densities.txt")
+  extremesFile <- paste0(divChroms,"/extremes.txt")
+  centroFile <- paste0(divChroms,"/workspace.txt")
+  
+  # FILES
+  windows <- read.table(windowsFile, header = T, sep = "\t")
+    windows$Color <- "a"
+    windows[as.numeric(rownames(windows)) %% 2 == 1,"Color"]<-"b"
+  windows$Chromosome <- factor(windows$Chromosome, levels =  paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+    
+  density <- read.table(densityFile, header = T, sep = "\t")
+  density$Chromosome <- factor(density$Chromosome, levels = paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  
+  extremes <- read.table(extremesFile, header = T, sep = "\t")
+  extremes$Chromosome <- factor(extremes$Chromosome, levels = paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  
+  centromeres <- read.table(centroFile, header = T, sep = "\t")
+  centromeres$Chromosome <- factor(centromeres$Chromosome, levels =  paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  armLimits <-centromeres[grep("cen", centromeres$chromID,invert = T),]
+  centromeres<-centromeres[grep("cen", centromeres$chromID),]
+  starts <-  armLimits[grep("p", armLimits$chromID), c("Start", "Chromosome")]
+  ends<- armLimits[grep("q", armLimits$chromID), c("End", "Chromosome")]
+  
+  
+  # PLOT
+  ggplot()+
+        geom_rect(data= centromeres,  aes(xmin = Start, xmax = End,  ymin = 0, ymax = Inf), fill = "blue4", alpha = 0.5)+
+        geom_vline(data=starts, aes(xintercept = Start), color = "orange")+geom_vline(data=ends, aes(xintercept = End), color = "orange")+
+        geom_rect(data=windows, aes(xmin = Start, xmax = End, fill = Color, ymin = 0, ymax = Inf), alpha = 0.3)+
+        geom_line(data=density,aes(x = pos, y = val))+
+        geom_point(data=extremes, aes(x = pos, y = val, color = Type))+
+        facet_wrap("Chromosome", scales  = "free", ncol=4)+
+        scale_fill_manual(values=c("#737373", "#e1e5eb"), guide="none")+
+        scale_color_manual(values = c("#bd2b43", "#2b63bd"), guide = "none")+
+        scale_y_continuous(labels=function(x)x*1000000)+
+         theme(axis.ticks.x = element_blank(),axis.text.x = element_blank(),axis.text.y = element_text(size = 5))+
+        ylab("Rate (cM/Mb)")+xlab("Position")+ggtitle(name) 
+
+```
+
+\newpage
+
+Next, we define telomeric regions as the space between the chromosome start to the next local minimum, or between the chromosome end to the previous local minimum. We also define centromeric regions as the space between two local maxima that contains the centromere. When the local maximum delimiting a centromeric region is the same as the peak from the corresponding telomeric region (see chr1, chr5, chr7, chr8, etc.), the limit between the telomeric and centromeric regions is defined as the center point between the local maximum corresponding to the telomeric peak and the local minimum corresponding to the centromere valley. These categories will be represented as the "Color" variable in this analysis. 
+
+
+```{r Modified-workspace, eval=runR, echo=showcode,  fig.cap="Color-coded windows for telomeric, centromeric and arm categories.",  fig.height=6 }
+windows <- data.frame()
+
+for (chrom in unique(extremes$Chromosome)) {
+  
+  # Sort extrema
+  extremes_c<- extremes[which(extremes$Chromosome == chrom) ,]
+  extremes_c<-extremes_c[order(extremes_c$pos),]
+  
+  # Chromosome extremes
+  teloExtremes<-extremes_c$pos[c(1,nrow(extremes_c))]
+  
+  # Telomeres threshold option A (midpoint between Max and Min)
+  teloMidsA<-c((extremes_c$pos[2]+extremes_c$pos[3])/2, (extremes_c$pos[nrow(extremes_c)-1]+extremes_c$pos[nrow(extremes_c)-2])/2)
+  telomeric<-data.frame(pos=c(teloExtremes, teloMidsA), Chromosome = chrom)
+  telomeric<-telomeric[order(telomeric$pos),]
+  
+  # Centromeres
+  centromeric <- centromeres[centromeres$Chromosome == chrom,]
+  if (nrow(centromeric) != 0){
+    leftMax<-max(extremes_c[which(extremes_c$pos <= centromeric$Start & extremes_c$Type == "Maxima"), "pos"])
+    rightMax<-min(extremes_c[which(extremes_c$pos >= centromeric$End & extremes_c$Type == "Maxima"), "pos"])
+    
+    centromeric$Start<- (centromeric$Start + leftMax)/2
+    centromeric$End<-(centromeric$End + rightMax)/2
+  }
+  
+  # Overlaps
+  if (nrow(centromeric) != 0){
+    #Average centromeres
+    teloend<- telomeric$pos[2]
+    telomeric$pos[2]<-ifelse(teloend>=centromeric$Start,  centromeric$Start , teloend)
+    telostart<-telomeric$pos[3]
+    telomeric$pos[3]<-ifelse(telostart<=centromeric$End, centromeric$End, telostart )
+  }
+
+  #Positions
+  positions<-unique(c(telomeric$pos, centromeric$Start, centromeric$End))
+  positions<-positions[order(positions)]
+  
+  chromwins<-data.frame(Start = positions[1:length(positions)-1], End = positions[2:length(positions)], Chromosome = chrom)
+  chromwins$Color<- "arm"
+  if (nrow(centromeric) != 0){
+    chromwins[chromwins$Start %in% telomeric[c(1,3), "pos"],"Color"]<-"telomeric"
+    chromwins[chromwins$Start == centromeric$Start,"Color"]<-"centromeric"
+    
+    # Divide centromeric in two
+    cenBis<-chromwins[chromwins$Color == "centromeric",]
+
+    chromwins[chromwins$Color == "centromeric","End"] <- centromeres[centromeres$Chromosome == chrom,"Start"]
+    cenBis$Start <- centromeres[centromeres$Chromosome == chrom,"End"]
+
+    chromwins<-rbind(chromwins, cenBis)
+
+  }else{
+    chromwins[chromwins$Start %in% telomeric[c(3), "pos"],"Color"]<-"telomeric"
+  }
+  
+
+  windows <- rbind(windows,chromwins)
+}
+
+
+write.table(windows, "data/windows.txt", quote = F, row.names = F, col.names = T, sep = "\t")
+
+
+
+  ggplot()+
+        # geom_rect(data= centromeres,  aes(xmin = Start, xmax = End,  ymin = 0, ymax = Inf), fill = "blue4", alpha = 0.5)+
+        geom_vline(data=starts, aes(xintercept = Start), color = "orange")+geom_vline(data=ends, aes(xintercept = End), color = "orange")+
+        geom_rect(data=windows, aes(xmin = Start, xmax = End, fill = Color, ymin = 0, ymax = Inf), alpha = 0.3)+
+        geom_line(data=density,aes(x = pos, y = val))+
+        geom_point(data=extremes, aes(x = pos, y = val, color = Type))+
+        facet_wrap("Chromosome", scales = "free", ncol = 4)+
+        # scale_fill_manual(values=c("#737373", "#e1e5eb"), guide="none")+
+        scale_color_manual(values = c("#bd2b43", "#2b63bd"), guide = "none")+
+        scale_y_continuous(labels=function(x)x*1000000)+
+         theme(axis.ticks.x = element_blank(),axis.text.x = element_blank(),axis.text.y = element_text(size = 5), legend.position = "top")+
+        ylab("Rate (cM/Mb)")+xlab("Position")+ggtitle(name) 
+  
+
+```
+
+
+<!-- Fill window information -->
+
+```{bash, include=showcode, eval=TRUE}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+NAME="afterMeetingWindows"
+cd "../../../"
+$ENVPY code/python/fillWindowMeasurements.py -m data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed -w report/20220519_tutorialLogisticModel/${NAME}/data/windows.txt  -o report/20220519_tutorialLogisticModel/${NAME}/data/ -d "chromRegions"
+cd report/20220519_tutorialLogisticModel/${NAME}/
+
+```

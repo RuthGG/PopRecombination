@@ -1,0 +1,395 @@
+Starting proces...
+analysis/20220516_LocationPatterns/divideChromosomes/avgBherer_VPzones_0.1_800000/
+[1] "### Load arguments"
+[1] "### Load packages"
+Loading required package: pacman
+Warning message:
+In dir.create(paste0(args[3], "/statAnalysis/")) :
+  'analysis/20220516_LocationPatterns/statAnalysis' already exists
+Warning message:
+In dir.create(outdir) :
+  'analysis/20220516_LocationPatterns/statAnalysis/avgBherer_VPzones_0.1_800000' already exists
+[1] "### Workspace visualization"
+null device 
+          1 
+[1] "### Variable visualization"
+null device 
+          1 
+[1] "### Correlations between variables"
+null device 
+          1 
+There were 27 warnings (use warnings() to see them)
+null device 
+          1 
+[1] "### Multiple linear regression"
+Start:  AIC=0.75
+invCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- allRepCounts  1    0.0588 101.18 -1.1891
+- maxRate       1    0.5199 101.64 -0.6889
+- WAvgRate      1    0.5384 101.66 -0.6690
+<none>                      101.12  0.7470
+- Length.bp.    1   12.6150 113.74 11.6783
+
+Step:  AIC=-1.19
+invCenters ~ WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1    0.4694 101.65 -2.6800
+- WAvgRate      1    0.6402 101.82 -2.4953
+<none>                      101.18 -1.1891
++ allRepCounts  1    0.0588 101.12  0.7470
+- Length.bp.    1   13.6666 114.85 10.7469
+
+Step:  AIC=-2.68
+invCenters ~ WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1    1.1448 102.80 -3.4481
+<none>                      101.65 -2.6800
++ maxRate       1    0.4694 101.18 -1.1891
++ allRepCounts  1    0.0083 101.64 -0.6889
+- Length.bp.    1   14.0327 115.69  9.5443
+
+Step:  AIC=-3.45
+invCenters ~ Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+<none>                      102.80 -3.4481
++ WAvgRate      1    1.1448 101.65 -2.6800
++ maxRate       1    0.9740 101.82 -2.4953
++ allRepCounts  1    0.0590 102.74 -1.5113
+- Length.bp.    1   19.0561 121.86 13.2582
+Start:  AIC=-38.5
+NHCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1    0.0346 70.811 -40.451
+- WAvgRate      1    0.3488 71.125 -39.964
+- allRepCounts  1    1.0492 71.826 -38.886
+<none>                      70.776 -38.505
+- Length.bp.    1   10.6726 81.449 -25.055
+
+Step:  AIC=-40.45
+NHCenters ~ allRepCounts + WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1    0.4861 71.297 -41.699
+- allRepCounts  1    1.1855 71.997 -40.625
+<none>                      70.811 -40.451
++ maxRate       1    0.0346 70.776 -38.505
+- Length.bp.    1   11.6388 82.450 -25.712
+
+Step:  AIC=-41.7
+NHCenters ~ allRepCounts + Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+- allRepCounts  1    0.9990 72.296 -42.168
+<none>                      71.297 -41.699
++ WAvgRate      1    0.4861 70.811 -40.451
++ maxRate       1    0.1719 71.125 -39.964
+- Length.bp.    1   13.9951 85.292 -23.984
+
+Step:  AIC=-42.17
+NHCenters ~ Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+<none>                      72.296 -42.168
++ allRepCounts  1    0.9990 71.297 -41.699
++ maxRate       1    0.3187 71.977 -40.654
++ WAvgRate      1    0.2996 71.997 -40.625
+- Length.bp.    1   13.1948 85.491 -25.728
+Start:  AIC=-124.51
+NAHRCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1   0.02050 32.405 -126.44
+- Length.bp.    1   0.08115 32.465 -126.23
+- maxRate       1   0.28637 32.670 -125.54
+<none>                      32.384 -124.51
+- allRepCounts  1   1.60461 33.989 -121.19
+
+Step:  AIC=-126.44
+NAHRCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- Length.bp.    1   0.12953 32.534 -128.00
+- maxRate       1   0.38751 32.792 -127.13
+<none>                      32.405 -126.44
++ WAvgRate      1   0.02050 32.384 -124.51
+- allRepCounts  1   1.75268 34.157 -122.65
+
+Step:  AIC=-128
+NAHRCenters ~ allRepCounts + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1   0.30192 32.836 -128.99
+<none>                      32.534 -128.00
++ Length.bp.    1   0.12953 32.405 -126.44
++ WAvgRate      1   0.06888 32.465 -126.23
+- allRepCounts  1   2.31209 34.846 -122.45
+
+Step:  AIC=-128.99
+NAHRCenters ~ allRepCounts
+
+               Df Sum of Sq    RSS     AIC
+<none>                      32.836 -128.99
++ maxRate       1   0.30192 32.534 -128.00
++ WAvgRate      1   0.15411 32.682 -127.50
++ Length.bp.    1   0.04394 32.792 -127.13
+- allRepCounts  1   2.03672 34.873 -124.36
+Warning messages:
+1: In dir.create(dirsave) :
+  'analysis/20220516_LocationPatterns/statAnalysis/avgBherer_VPzones_0.1_800000/model_invCenters' already exists
+2: In dir.create(dirsave) :
+  'analysis/20220516_LocationPatterns/statAnalysis/avgBherer_VPzones_0.1_800000/model_NHCenters' already exists
+3: In dir.create(dirsave) :
+  'analysis/20220516_LocationPatterns/statAnalysis/avgBherer_VPzones_0.1_800000/model_NAHRCenters' already exists
+analysis/20220516_LocationPatterns/divideChromosomes/CEUSpence_VPzones_0.1_800000/
+[1] "### Load arguments"
+[1] "### Load packages"
+Loading required package: pacman
+Warning message:
+In dir.create(paste0(args[3], "/statAnalysis/")) :
+  'analysis/20220516_LocationPatterns/statAnalysis' already exists
+Warning message:
+In dir.create(outdir) :
+  'analysis/20220516_LocationPatterns/statAnalysis/CEUSpence_VPzones_0.1_800000' already exists
+[1] "### Workspace visualization"
+null device 
+          1 
+[1] "### Variable visualization"
+null device 
+          1 
+[1] "### Correlations between variables"
+null device 
+          1 
+There were 27 warnings (use warnings() to see them)
+null device 
+          1 
+[1] "### Multiple linear regression"
+Start:  AIC=0.75
+invCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- allRepCounts  1    0.0588 101.18 -1.1891
+- maxRate       1    0.5199 101.64 -0.6889
+- WAvgRate      1    0.5384 101.66 -0.6690
+<none>                      101.12  0.7470
+- Length.bp.    1   12.6150 113.74 11.6783
+
+Step:  AIC=-1.19
+invCenters ~ WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1    0.4694 101.65 -2.6800
+- WAvgRate      1    0.6402 101.82 -2.4953
+<none>                      101.18 -1.1891
++ allRepCounts  1    0.0588 101.12  0.7470
+- Length.bp.    1   13.6666 114.85 10.7469
+
+Step:  AIC=-2.68
+invCenters ~ WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1    1.1448 102.80 -3.4481
+<none>                      101.65 -2.6800
++ maxRate       1    0.4694 101.18 -1.1891
++ allRepCounts  1    0.0083 101.64 -0.6889
+- Length.bp.    1   14.0327 115.69  9.5443
+
+Step:  AIC=-3.45
+invCenters ~ Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+<none>                      102.80 -3.4481
++ WAvgRate      1    1.1448 101.65 -2.6800
++ maxRate       1    0.9740 101.82 -2.4953
++ allRepCounts  1    0.0590 102.74 -1.5113
+- Length.bp.    1   19.0561 121.86 13.2582
+Start:  AIC=-38.5
+NHCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1    0.0346 70.811 -40.451
+- WAvgRate      1    0.3488 71.125 -39.964
+- allRepCounts  1    1.0492 71.826 -38.886
+<none>                      70.776 -38.505
+- Length.bp.    1   10.6726 81.449 -25.055
+
+Step:  AIC=-40.45
+NHCenters ~ allRepCounts + WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1    0.4861 71.297 -41.699
+- allRepCounts  1    1.1855 71.997 -40.625
+<none>                      70.811 -40.451
++ maxRate       1    0.0346 70.776 -38.505
+- Length.bp.    1   11.6388 82.450 -25.712
+
+Step:  AIC=-41.7
+NHCenters ~ allRepCounts + Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+- allRepCounts  1    0.9990 72.296 -42.168
+<none>                      71.297 -41.699
++ WAvgRate      1    0.4861 70.811 -40.451
++ maxRate       1    0.1719 71.125 -39.964
+- Length.bp.    1   13.9951 85.292 -23.984
+
+Step:  AIC=-42.17
+NHCenters ~ Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+<none>                      72.296 -42.168
++ allRepCounts  1    0.9990 71.297 -41.699
++ maxRate       1    0.3187 71.977 -40.654
++ WAvgRate      1    0.2996 71.997 -40.625
+- Length.bp.    1   13.1948 85.491 -25.728
+Start:  AIC=-124.51
+NAHRCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1   0.02050 32.405 -126.44
+- Length.bp.    1   0.08115 32.465 -126.23
+- maxRate       1   0.28637 32.670 -125.54
+<none>                      32.384 -124.51
+- allRepCounts  1   1.60461 33.989 -121.19
+
+Step:  AIC=-126.44
+NAHRCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- Length.bp.    1   0.12953 32.534 -128.00
+- maxRate       1   0.38751 32.792 -127.13
+<none>                      32.405 -126.44
++ WAvgRate      1   0.02050 32.384 -124.51
+- allRepCounts  1   1.75268 34.157 -122.65
+
+Step:  AIC=-128
+NAHRCenters ~ allRepCounts + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1   0.30192 32.836 -128.99
+<none>                      32.534 -128.00
++ Length.bp.    1   0.12953 32.405 -126.44
++ WAvgRate      1   0.06888 32.465 -126.23
+- allRepCounts  1   2.31209 34.846 -122.45
+
+Step:  AIC=-128.99
+NAHRCenters ~ allRepCounts
+
+               Df Sum of Sq    RSS     AIC
+<none>                      32.836 -128.99
++ maxRate       1   0.30192 32.534 -128.00
++ WAvgRate      1   0.15411 32.682 -127.50
++ Length.bp.    1   0.04394 32.792 -127.13
+- allRepCounts  1   2.03672 34.873 -124.36
+analysis/20220516_LocationPatterns/divideChromosomes/femBherer_VPzones_0.1_800000/
+[1] "### Load arguments"
+[1] "### Load packages"
+Loading required package: pacman
+Warning message:
+In dir.create(paste0(args[3], "/statAnalysis/")) :
+  'analysis/20220516_LocationPatterns/statAnalysis' already exists
+Warning message:
+In dir.create(outdir) :
+  'analysis/20220516_LocationPatterns/statAnalysis/femBherer_VPzones_0.1_800000' already exists
+[1] "### Workspace visualization"
+null device 
+          1 
+[1] "### Variable visualization"
+null device 
+          1 
+[1] "### Correlations between variables"
+null device 
+          1 
+There were 27 warnings (use warnings() to see them)
+null device 
+          1 
+[1] "### Multiple linear regression"
+Start:  AIC=8.8
+invCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+- WAvgRate      1    0.4824 130.28  7.283
+- allRepCounts  1    1.5195 131.32  8.321
+<none>                      129.80  8.797
+- maxRate       1   11.4270 141.23 17.849
+- Length.bp.    1   29.3759 159.18 33.522
+
+Step:  AIC=7.28
+invCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+- allRepCounts  1     1.786 132.07  7.066
+<none>                      130.28  7.283
++ WAvgRate      1     0.482 129.80  8.797
+- maxRate       1    10.978 141.26 15.880
+- Length.bp.    1    32.211 162.50 34.225
+
+Step:  AIC=7.07
+invCenters ~ Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+<none>                      132.07  7.066
++ allRepCounts  1     1.786 130.28  7.283
++ WAvgRate      1     0.749 131.32  8.321
+- maxRate       1    10.565 142.64 15.148
+- Length.bp.    1    53.197 185.27 49.405
+Start:  AIC=-76.9
+NHCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1    0.0144 67.495 -78.872
+- allRepCounts  1    0.3815 67.862 -78.161
+<none>                      67.480 -76.900
+- maxRate       1    1.3263 68.807 -76.350
+- Length.bp.    1   14.8258 82.306 -52.882
+
+Step:  AIC=-78.87
+NHCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- allRepCounts  1    0.3686 67.863 -80.159
+<none>                      67.495 -78.872
+- maxRate       1    1.4011 68.896 -78.181
++ WAvgRate      1    0.0144 67.480 -76.900
+- Length.bp.    1   15.6445 83.139 -53.563
+
+Step:  AIC=-80.16
+NHCenters ~ Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+<none>                      67.863 -80.159
+- maxRate       1    1.3333 69.197 -79.610
++ allRepCounts  1    0.3686 67.495 -78.872
++ WAvgRate      1    0.0015 67.862 -78.161
+- Length.bp.    1   17.6937 85.557 -51.808
+Start:  AIC=-48.31
+NAHRCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq     RSS     AIC
+- WAvgRate      1    0.3302  84.272 -49.791
+<none>                       83.941 -48.305
+- Length.bp.    1    2.4634  86.405 -46.516
+- allRepCounts  1    3.4237  87.365 -45.068
+- maxRate       1   20.5394 104.481 -21.631
+
+Step:  AIC=-49.79
+NAHRCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq     RSS     AIC
+<none>                       84.272 -49.791
++ WAvgRate      1    0.3302  83.941 -48.305
+- Length.bp.    1    2.9590  87.231 -47.270
+- allRepCounts  1    3.7773  88.049 -46.047
+- maxRate       1   20.2227 104.494 -23.614
+Warning messages:
+1: In dir.create(dirsave) :
+  'analysis/20220516_LocationPatterns/statAnalysis/femBherer_VPzones_0.1_800000/model_invCenters' already exists
+2: In dir.create(dirsave) :
+  'analysis/20220516_LocationPatterns/statAnalysis/femBherer_VPzones_0.1_800000/model_NHCenters' already exists
+3: In dir.create(dirsave) :
+  'analysis/20220516_LocationPatterns/statAnalysis/femBherer_VPzones_0.1_800000/model_NAHRCenters' already exists

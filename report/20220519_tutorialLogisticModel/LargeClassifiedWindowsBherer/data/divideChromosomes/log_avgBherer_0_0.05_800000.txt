@@ -1,0 +1,23 @@
+2022-05-24 09:11:14,706 - Starting divideChromosomes.py
+2022-05-24 09:11:14,706 - Parameters
+
+    recombination map       : data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed
+    band file               : data/cytoBand.txt
+    numer of windows        : 0 
+    crossover zone strength : 0.05
+    crossover zone replicas : 800000
+    output directory        : report/20220519_tutorialLogisticModel/data/divideChromosomes/
+    seed:                   : 57022790
+
+2022-05-24 09:11:14,706 - Loading data
+2022-05-24 09:11:14,966 - Calculating theoretical chromosome limits
+2022-05-24 09:11:14,973 - Calculating actual chromosome limits
+2022-05-24 09:11:23,176 - Skipping fixed window sectioning...
+2022-05-24 09:11:23,176 - Dividing chromosomes into crossover sections with 0.05 strength and 800000 replicas 
+2022-05-24 09:13:20,591 -     Files generated: 
+        report/20220519_tutorialLogisticModel/data/divideChromosomes/avgBherer_COzones_0.05_800000/windows.txt
+        report/20220519_tutorialLogisticModel/data/divideChromosomes/avgBherer_COzones_0.05_800000/extremes.txt
+        report/20220519_tutorialLogisticModel/data/divideChromosomes/avgBherer_COzones_0.05_800000/densities.txt
+        report/20220519_tutorialLogisticModel/data/divideChromosomes/avgBherer_COzones_0.05_800000/workspace.txt
+        report/20220519_tutorialLogisticModel/data/divideChromosomes/avgBherer_COzones_0.05_800000/log.txt 
+2022-05-24 09:13:20,591 - Finished

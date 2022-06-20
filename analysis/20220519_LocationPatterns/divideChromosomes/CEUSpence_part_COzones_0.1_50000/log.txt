@@ -1,0 +1,10 @@
+Parameters
+
+    recombination map       : data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_1481711.bed
+    band file               : data/cytoBand.txt
+    numer of windows        : 0 
+    crossover zone strength : 0.1
+    crossover zone replicas : 50000
+    output directory        : analysis/20220519_LocationPatterns/divideChromosomes/
+    seed:                   : 3707169844
+

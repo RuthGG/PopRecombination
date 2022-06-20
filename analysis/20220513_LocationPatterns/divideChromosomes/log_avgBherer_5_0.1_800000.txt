@@ -1,0 +1,27 @@
+2022-05-12 14:22:43,378 - Starting divideChromosomes.py
+2022-05-12 14:22:43,378 - Parameters
+
+    recombination map       : data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed
+    band file               : data/cytoBand.txt
+    numer of windows        : 5 
+    crossover zone strength : 0.1
+    crossover zone replicas : 800000
+    output directory        : analysis/20220512_LocationPatterns/divideChromosomes/
+    seed:                   : 1001877465
+
+2022-05-12 14:22:43,378 - Loading data
+2022-05-12 14:22:43,732 - Calculating theoretical chromosome limits
+2022-05-12 14:22:43,787 - Calculating actual chromosome limits
+2022-05-12 14:22:52,187 - Dividing chromosome arms into 5 sections 
+2022-05-12 14:22:52,257 -     Files generated: 
+        analysis/20220512_LocationPatterns/divideChromosomes/avgBherer_fixedArms_5/windows.txt
+        analysis/20220512_LocationPatterns/divideChromosomes/avgBherer_fixedArms_5/workspace.txt
+        analysis/20220512_LocationPatterns/divideChromosomes/avgBherer_fixedArms_5/log.txt 
+2022-05-12 14:22:52,257 - Dividing chromosomes into crossover sections with 0.1 strength and 800000 replicas 
+2022-05-12 14:25:10,252 -     Files generated: 
+        analysis/20220512_LocationPatterns/divideChromosomes/avgBherer_COzones_0.1_800000/windows.txt
+        analysis/20220512_LocationPatterns/divideChromosomes/avgBherer_COzones_0.1_800000/extremes.txt
+        analysis/20220512_LocationPatterns/divideChromosomes/avgBherer_COzones_0.1_800000/densities.txt
+        analysis/20220512_LocationPatterns/divideChromosomes/avgBherer_COzones_0.1_800000/workspace.txt
+        analysis/20220512_LocationPatterns/divideChromosomes/avgBherer_COzones_0.1_800000/log.txt 
+2022-05-12 14:25:10,252 - Finished

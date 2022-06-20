@@ -1,0 +1,29 @@
+---
+title: "Ordinal logistic model on large, classified windows data"
+author: "Ruth Gómez Graciani"
+output:
+  pdf_document: default
+header-includes:
+ \usepackage{float}
+ \floatplacement{figure}{H}
+---
+
+```{r child = '01PrepareTheData.Rmd'}
+```
+
+\newpage
+```{r child = '02ExploreTheData.Rmd'}
+```
+
+\newpage
+
+```{r child = '03invAnalysis.Rmd'}
+```
+
+\newpage
+```{r child = '04NHAnalysis.Rmd'}
+```
+
+\newpage
+```{r child = '05NAHRAnalysis.Rmd'}
+```

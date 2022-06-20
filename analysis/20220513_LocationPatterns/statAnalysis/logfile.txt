@@ -1,0 +1,762 @@
+Starting proces...
+analysis/20220513_LocationPatterns/divideChromosomes/avgBherer_COzones_0.1_800000/
+[1] "### Load arguments"
+[1] "### Load packages"
+Loading required package: pacman
+Warning message:
+In dir.create(paste0(args[3], "/statAnalysis/")) :
+  'analysis/20220513_LocationPatterns/statAnalysis' already exists
+[1] "### Workspace visualization"
+null device 
+          1 
+[1] "### Variable visualization"
+null device 
+          1 
+[1] "### Correlations between variables"
+null device 
+          1 
+There were 27 warnings (use warnings() to see them)
+null device 
+          1 
+[1] "### Multiple linear regression"
+Start:  AIC=48.26
+invCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+- maxRate       1    0.3044 118.15 46.429
+- allRepCounts  1    1.3577 119.20 47.015
+- WAvgRate      1    1.7168 119.56 47.214
+<none>                      117.84 48.259
+- Length.bp.    1   17.1436 134.99 55.224
+
+Step:  AIC=46.43
+invCenters ~ allRepCounts + WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS    AIC
+- allRepCounts  1    1.0616 119.21 45.020
+- WAvgRate      1    1.9802 120.13 45.526
+<none>                      118.15 46.429
++ maxRate       1    0.3044 117.84 48.259
+- Length.bp.    1   17.1724 135.32 53.386
+
+Step:  AIC=45.02
+invCenters ~ WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS    AIC
+- WAvgRate      1    2.2478 121.45 44.253
+<none>                      119.21 45.020
++ allRepCounts  1    1.0616 118.15 46.429
++ maxRate       1    0.0083 119.20 47.015
+- Length.bp.    1   21.6790 140.89 54.048
+
+Step:  AIC=44.25
+invCenters ~ Length.bp.
+
+               Df Sum of Sq    RSS    AIC
+<none>                      121.45 44.253
++ WAvgRate      1     2.248 119.21 45.020
++ allRepCounts  1     1.329 120.13 45.526
++ maxRate       1     0.060 121.39 46.220
+- Length.bp.    1    39.636 161.09 60.893
+Start:  AIC=16.31
+NHCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+- allRepCounts  1    0.0084 72.628 14.316
+- maxRate       1    0.1485 72.768 14.443
+- WAvgRate      1    0.9749 73.595 15.189
+<none>                      72.620 16.309
+- Length.bp.    1   16.6043 89.224 27.899
+
+Step:  AIC=14.32
+NHCenters ~ WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+- maxRate       1    0.2125 72.841 12.509
+- WAvgRate      1    0.9684 73.597 13.190
+<none>                      72.628 14.316
++ allRepCounts  1    0.0084 72.620 16.309
+- Length.bp.    1   16.8861 89.514 26.113
+
+Step:  AIC=12.51
+NHCenters ~ WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS    AIC
+- WAvgRate      1    1.0752 73.916 11.476
+<none>                      72.841 12.509
++ maxRate       1    0.2125 72.628 14.316
++ allRepCounts  1    0.0724 72.768 14.443
+- Length.bp.    1   17.9046 90.745 25.015
+
+Step:  AIC=11.48
+NHCenters ~ Length.bp.
+
+               Df Sum of Sq     RSS    AIC
+<none>                       73.916 11.476
++ WAvgRate      1    1.0752  72.841 12.509
++ maxRate       1    0.3193  73.597 13.190
++ allRepCounts  1    0.0327  73.883 13.447
+- Length.bp.    1   30.5689 104.485 32.320
+Start:  AIC=-27.13
+NAHRCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- Length.bp.    1   0.00431 37.608 -29.121
+- maxRate       1   0.02769 37.631 -29.080
+- WAvgRate      1   0.10426 37.708 -28.946
+<none>                      37.603 -27.129
+- allRepCounts  1   1.57927 39.183 -26.414
+
+Step:  AIC=-29.12
+NAHRCenters ~ allRepCounts + WAvgRate + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1   0.02386 37.632 -31.079
+- WAvgRate      1   0.16258 37.770 -30.837
+<none>                      37.608 -29.121
+- allRepCounts  1   1.64315 39.251 -28.299
++ Length.bp.    1   0.00431 37.603 -27.129
+
+Step:  AIC=-31.08
+NAHRCenters ~ allRepCounts + WAvgRate
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1   0.16561 37.797 -32.790
+<none>                      37.632 -31.079
+- allRepCounts  1   1.86818 39.500 -29.882
++ maxRate       1   0.02386 37.608 -29.121
++ Length.bp.    1   0.00048 37.631 -29.080
+
+Step:  AIC=-32.79
+NAHRCenters ~ allRepCounts
+
+               Df Sum of Sq    RSS     AIC
+<none>                      37.797 -32.790
++ WAvgRate      1   0.16561 37.632 -31.079
++ Length.bp.    1   0.04266 37.755 -30.864
+- allRepCounts  1   2.32393 40.121 -30.851
++ maxRate       1   0.02689 37.770 -30.837
+analysis/20220513_LocationPatterns/divideChromosomes/avgBherer_fixedArms_5/
+[1] "### Load arguments"
+[1] "### Load packages"
+Loading required package: pacman
+Warning message:
+In dir.create(paste0(args[3], "/statAnalysis/")) :
+  'analysis/20220513_LocationPatterns/statAnalysis' already exists
+[1] "### Workspace visualization"
+Scale for 'x' is already present. Adding another scale for 'x', which will
+replace the existing scale.
+Scale for 'x' is already present. Adding another scale for 'x', which will
+replace the existing scale.
+Scale for 'x' is already present. Adding another scale for 'x', which will
+replace the existing scale.
+null device 
+          1 
+Warning messages:
+1: In getIdeoGR(data) :
+  geom(ideogram) need valid seqlengths information for accurate mapping,
+                 now use reduced information as ideogram... 
+2: In getIdeoGR(data) :
+  geom(ideogram) need valid seqlengths information for accurate mapping,
+                 now use reduced information as ideogram... 
+[1] "### Variable visualization"
+null device 
+          1 
+[1] "### Correlations between variables"
+null device 
+          1 
+There were 27 warnings (use warnings() to see them)
+null device 
+          1 
+[1] "### Multiple linear regression"
+Start:  AIC=-132.01
+invCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq     RSS     AIC
+- maxRate       1    0.0114  94.146 -133.99
+- WAvgRate      1    0.2965  94.431 -133.40
+<none>                       94.135 -132.01
+- allRepCounts  1    2.9639  97.098 -127.97
+- Length.bp.    1    7.7244 101.859 -118.64
+
+Step:  AIC=-133.99
+invCenters ~ allRepCounts + WAvgRate + Length.bp.
+
+               Df Sum of Sq     RSS     AIC
+- WAvgRate      1    0.3686  94.515 -135.23
+<none>                       94.146 -133.99
++ maxRate       1    0.0114  94.135 -132.01
+- allRepCounts  1    2.9540  97.100 -129.97
+- Length.bp.    1    8.6452 102.791 -118.86
+
+Step:  AIC=-135.23
+invCenters ~ allRepCounts + Length.bp.
+
+               Df Sum of Sq     RSS     AIC
+<none>                       94.515 -135.23
++ WAvgRate      1    0.3686  94.146 -133.99
++ maxRate       1    0.0835  94.431 -133.40
+- allRepCounts  1    3.3672  97.882 -130.40
+- Length.bp.    1   11.7033 106.218 -114.46
+Start:  AIC=-179.73
+NHCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1    0.0154 73.717 -181.69
+- allRepCounts  1    0.0527 73.754 -181.59
+- WAvgRate      1    0.2481 73.949 -181.08
+<none>                      73.701 -179.73
+- Length.bp.    1    7.4594 81.161 -162.93
+
+Step:  AIC=-181.69
+NHCenters ~ allRepCounts + WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+- allRepCounts  1    0.0484 73.765 -183.56
+- WAvgRate      1    0.3181 74.035 -182.85
+<none>                      73.717 -181.69
++ maxRate       1    0.0154 73.701 -179.73
+- Length.bp.    1    8.3055 82.022 -162.87
+
+Step:  AIC=-183.56
+NHCenters ~ WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1    0.3665 74.132 -184.60
+<none>                      73.765 -183.56
++ allRepCounts  1    0.0484 73.717 -181.69
++ maxRate       1    0.0110 73.754 -181.59
+- Length.bp.    1    8.6809 82.446 -163.87
+
+Step:  AIC=-184.6
+NHCenters ~ Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+<none>                      74.132 -184.60
++ WAvgRate      1    0.3665 73.765 -183.56
++ allRepCounts  1    0.0968 74.035 -182.85
++ maxRate       1    0.0794 74.052 -182.81
+- Length.bp.    1   12.2480 86.379 -156.78
+Start:  AIC=-341.91
+NAHRCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1   0.00030 32.083 -343.91
+- WAvgRate      1   0.00215 32.085 -343.90
+- Length.bp.    1   0.00231 32.085 -343.90
+<none>                      32.083 -341.91
+- allRepCounts  1   2.22590 34.308 -330.83
+
+Step:  AIC=-343.91
+NAHRCenters ~ allRepCounts + WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1   0.00186 32.085 -345.90
+- Length.bp.    1   0.00340 32.086 -345.89
+<none>                      32.083 -343.91
++ maxRate       1   0.00030 32.083 -341.91
+- allRepCounts  1   2.24614 34.329 -332.72
+
+Step:  AIC=-345.9
+NAHRCenters ~ allRepCounts + Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+- Length.bp.    1   0.00649 32.091 -347.86
+<none>                      32.085 -345.90
++ WAvgRate      1   0.00186 32.083 -343.91
++ maxRate       1   0.00001 32.085 -343.90
+- allRepCounts  1   2.32200 34.407 -334.28
+
+Step:  AIC=-347.86
+NAHRCenters ~ allRepCounts
+
+               Df Sum of Sq    RSS     AIC
+<none>                      32.091 -347.86
++ Length.bp.    1   0.00649 32.085 -345.90
++ WAvgRate      1   0.00494 32.086 -345.89
++ maxRate       1   0.00059 32.091 -345.86
+- allRepCounts  1   2.50366 34.595 -335.21
+analysis/20220513_LocationPatterns/divideChromosomes/CEUSpence_COzones_0.1_800000/
+[1] "### Load arguments"
+[1] "### Load packages"
+Loading required package: pacman
+Warning message:
+In dir.create(paste0(args[3], "/statAnalysis/")) :
+  'analysis/20220513_LocationPatterns/statAnalysis' already exists
+[1] "### Workspace visualization"
+null device 
+          1 
+[1] "### Variable visualization"
+null device 
+          1 
+[1] "### Correlations between variables"
+null device 
+          1 
+There were 27 warnings (use warnings() to see them)
+null device 
+          1 
+[1] "### Multiple linear regression"
+Start:  AIC=52.33
+invCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+- maxRate       1    0.6392 122.13 50.646
+- WAvgRate      1    2.1614 123.66 51.389
+- allRepCounts  1    2.6220 124.12 51.612
+<none>                      121.49 52.331
+- Length.bp.    1   14.9534 136.45 57.296
+
+Step:  AIC=50.65
+invCenters ~ allRepCounts + WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS    AIC
+- allRepCounts  1    2.2313 124.36 49.733
+- WAvgRate      1    2.6307 124.76 49.925
+<none>                      122.13 50.646
++ maxRate       1    0.6392 121.49 52.331
+- Length.bp.    1   14.3357 136.47 55.305
+
+Step:  AIC=49.73
+invCenters ~ WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS    AIC
+- WAvgRate      1    1.5492 125.91 48.475
+<none>                      124.36 49.733
++ allRepCounts  1    2.2313 122.13 50.646
++ maxRate       1    0.2486 124.12 51.612
+- Length.bp.    1   26.9737 151.34 59.511
+
+Step:  AIC=48.48
+invCenters ~ Length.bp.
+
+               Df Sum of Sq    RSS    AIC
+<none>                      125.91 48.475
++ WAvgRate      1     1.549 124.36 49.733
++ allRepCounts  1     1.150 124.76 49.925
++ maxRate       1     0.580 125.33 50.198
+- Length.bp.    1    43.486 169.40 64.275
+Start:  AIC=16.74
+NHCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+- maxRate       1    0.0213 67.152 14.757
+- allRepCounts  1    0.0496 67.181 14.783
+<none>                      67.131 16.738
+- WAvgRate      1    3.0883 70.219 17.437
+- Length.bp.    1   10.3386 77.470 23.333
+
+Step:  AIC=14.76
+NHCenters ~ allRepCounts + WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS    AIC
+- allRepCounts  1    0.0652 67.218 12.816
+<none>                      67.152 14.757
+- WAvgRate      1    3.0872 70.240 15.454
++ maxRate       1    0.0213 67.131 16.738
+- Length.bp.    1   10.8082 77.961 21.712
+
+Step:  AIC=12.82
+NHCenters ~ WAvgRate + Length.bp.
+
+               Df Sum of Sq    RSS    AIC
+<none>                      67.218 12.816
+- WAvgRate      1    3.0904 70.308 13.512
++ allRepCounts  1    0.0652 67.152 14.757
++ maxRate       1    0.0369 67.181 14.783
+- Length.bp.    1   15.3726 82.590 23.173
+Start:  AIC=-20.86
+NAHRCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1   0.08248 35.956 -22.722
+- Length.bp.    1   0.42458 36.299 -22.154
+- maxRate       1   0.89366 36.768 -21.384
+<none>                      35.874 -20.860
+- allRepCounts  1   1.95030 37.824 -19.683
+
+Step:  AIC=-22.72
+NAHRCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- Length.bp.    1   0.34988 36.306 -24.141
+- maxRate       1   0.82943 36.786 -23.354
+<none>                      35.956 -22.722
+- allRepCounts  1   2.29456 38.251 -21.010
++ WAvgRate      1   0.08248 35.874 -20.860
+
+Step:  AIC=-24.14
+NAHRCenters ~ allRepCounts + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1    0.7356 37.042 -24.938
+<none>                      36.306 -24.141
++ Length.bp.    1    0.3499 35.956 -22.722
++ WAvgRate      1    0.0078 36.299 -22.154
+- allRepCounts  1    3.5360 39.842 -20.565
+
+Step:  AIC=-24.94
+NAHRCenters ~ allRepCounts
+
+               Df Sum of Sq    RSS     AIC
+<none>                      37.042 -24.938
++ maxRate       1   0.73557 36.306 -24.141
++ Length.bp.    1   0.25602 36.786 -23.354
++ WAvgRate      1   0.02559 37.016 -22.979
+- allRepCounts  1   2.89138 39.933 -22.428
+analysis/20220513_LocationPatterns/divideChromosomes/CEUSpence_fixedArms_5/
+[1] "### Load arguments"
+[1] "### Load packages"
+Loading required package: pacman
+Warning message:
+In dir.create(paste0(args[3], "/statAnalysis/")) :
+  'analysis/20220513_LocationPatterns/statAnalysis' already exists
+[1] "### Workspace visualization"
+Scale for 'x' is already present. Adding another scale for 'x', which will
+replace the existing scale.
+Scale for 'x' is already present. Adding another scale for 'x', which will
+replace the existing scale.
+Scale for 'x' is already present. Adding another scale for 'x', which will
+replace the existing scale.
+null device 
+          1 
+Warning messages:
+1: In getIdeoGR(data) :
+  geom(ideogram) need valid seqlengths information for accurate mapping,
+                 now use reduced information as ideogram... 
+2: In getIdeoGR(data) :
+  geom(ideogram) need valid seqlengths information for accurate mapping,
+                 now use reduced information as ideogram... 
+[1] "### Variable visualization"
+null device 
+          1 
+[1] "### Correlations between variables"
+null device 
+          1 
+There were 27 warnings (use warnings() to see them)
+null device 
+          1 
+[1] "### Multiple linear regression"
+Start:  AIC=-143.4
+invCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq     RSS     AIC
+- WAvgRate      1    0.0204  92.903 -145.35
+- maxRate       1    0.1543  93.037 -145.06
+<none>                       92.883 -143.40
+- allRepCounts  1    3.0376  95.921 -138.96
+- Length.bp.    1    9.5236 102.406 -125.87
+
+Step:  AIC=-145.35
+invCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq     RSS     AIC
+- maxRate       1    0.1783  93.082 -146.97
+<none>                       92.903 -145.35
++ WAvgRate      1    0.0204  92.883 -143.40
+- allRepCounts  1    3.0173  95.921 -140.96
+- Length.bp.    1   13.4334 106.337 -120.34
+
+Step:  AIC=-146.97
+invCenters ~ allRepCounts + Length.bp.
+
+               Df Sum of Sq     RSS     AIC
+<none>                       93.082 -146.97
++ maxRate       1    0.1783  92.903 -145.35
++ WAvgRate      1    0.0443  93.037 -145.06
+- allRepCounts  1    2.8740  95.956 -142.89
+- Length.bp.    1   13.2731 106.355 -122.31
+Start:  AIC=-195.71
+NHCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1    0.0391 71.546 -197.60
+- allRepCounts  1    0.0985 71.605 -197.43
+- maxRate       1    0.5761 72.083 -196.10
+<none>                      71.507 -195.71
+- Length.bp.    1    8.6903 80.197 -174.77
+
+Step:  AIC=-197.6
+NHCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- allRepCounts  1    0.0892 71.635 -199.35
+- maxRate       1    0.6443 72.190 -197.80
+<none>                      71.546 -197.60
++ WAvgRate      1    0.0391 71.507 -195.71
+- Length.bp.    1   12.5121 84.058 -167.36
+
+Step:  AIC=-199.35
+NHCenters ~ Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1    0.5915 72.227 -199.70
+<none>                      71.635 -199.35
++ allRepCounts  1    0.0892 71.546 -197.60
++ WAvgRate      1    0.0298 71.605 -197.43
+- Length.bp.    1   13.4759 85.111 -166.87
+
+Step:  AIC=-199.7
+NHCenters ~ Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+<none>                      72.227 -199.70
++ maxRate       1    0.5915 71.635 -199.35
++ WAvgRate      1    0.0936 72.133 -197.96
++ allRepCounts  1    0.0365 72.190 -197.80
+- Length.bp.    1   12.8934 85.120 -168.85
+Start:  AIC=-356.03
+NAHRCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1   0.00302 32.081 -358.01
+- Length.bp.    1   0.01907 32.097 -357.91
+- maxRate       1   0.13407 32.212 -357.20
+<none>                      32.078 -356.03
+- allRepCounts  1   2.04199 34.120 -345.69
+
+Step:  AIC=-358.01
+NAHRCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- Length.bp.    1   0.01636 32.097 -359.91
+- maxRate       1   0.14475 32.225 -359.11
+<none>                      32.081 -358.01
++ WAvgRate      1   0.00302 32.078 -356.03
+- allRepCounts  1   2.06871 34.149 -347.51
+
+Step:  AIC=-359.91
+NAHRCenters ~ allRepCounts + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1   0.16360 32.261 -360.89
+<none>                      32.097 -359.91
++ Length.bp.    1   0.01636 32.081 -358.01
++ WAvgRate      1   0.00031 32.097 -357.91
+- allRepCounts  1   2.23197 34.329 -348.47
+
+Step:  AIC=-360.89
+NAHRCenters ~ allRepCounts
+
+               Df Sum of Sq    RSS     AIC
+<none>                      32.261 -360.89
++ maxRate       1   0.16360 32.097 -359.91
++ Length.bp.    1   0.03522 32.225 -359.11
++ WAvgRate      1   0.00010 32.261 -358.89
+- allRepCounts  1   2.51933 34.780 -347.85
+analysis/20220513_LocationPatterns/divideChromosomes/femBherer_COzones_0.1_800000/
+[1] "### Load arguments"
+[1] "### Load packages"
+Loading required package: pacman
+Warning message:
+In dir.create(paste0(args[3], "/statAnalysis/")) :
+  'analysis/20220513_LocationPatterns/statAnalysis' already exists
+[1] "### Workspace visualization"
+null device 
+          1 
+[1] "### Variable visualization"
+null device 
+          1 
+[1] "### Correlations between variables"
+null device 
+          1 
+There were 27 warnings (use warnings() to see them)
+null device 
+          1 
+[1] "### Multiple linear regression"
+Start:  AIC=47.82
+invCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+- allRepCounts  1     0.341 126.18 46.032
+- WAvgRate      1     1.934 127.78 46.998
+<none>                      125.84 47.824
+- Length.bp.    1    22.853 148.69 58.673
+- maxRate       1    38.694 164.54 66.468
+
+Step:  AIC=46.03
+invCenters ~ WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+- WAvgRate      1     2.151 128.33 45.334
+<none>                      126.18 46.032
++ allRepCounts  1     0.341 125.84 47.824
+- Length.bp.    1    28.234 154.42 59.580
+- maxRate       1    39.272 165.45 64.896
+
+Step:  AIC=45.33
+invCenters ~ Length.bp. + maxRate
+
+               Df Sum of Sq    RSS    AIC
+<none>                      128.33 45.334
++ WAvgRate      1     2.151 126.18 46.032
++ allRepCounts  1     0.558 127.78 46.998
+- maxRate       1    39.821 168.16 64.143
+- Length.bp.    1    47.414 175.75 67.544
+Start:  AIC=6.69
+NHCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- allRepCounts  1    0.3293 74.086  5.0294
+- WAvgRate      1    0.8304 74.587  5.5484
+<none>                      73.757  6.6863
+- maxRate       1    2.4054 76.162  7.1574
+- Length.bp.    1   22.4744 96.231 25.1669
+
+Step:  AIC=5.03
+NHCenters ~ WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1    0.7248 74.811  3.7790
+<none>                      74.086  5.0294
+- maxRate       1    2.5223 76.608  5.6072
++ allRepCounts  1    0.3293 73.757  6.6863
+- Length.bp.    1   23.4513 97.537 24.2051
+
+Step:  AIC=3.78
+NHCenters ~ Length.bp. + maxRate
+
+               Df Sum of Sq     RSS    AIC
+<none>                       74.811  3.779
+- maxRate       1     2.449  77.260  4.259
++ WAvgRate      1     0.725  74.086  5.029
++ allRepCounts  1     0.224  74.587  5.548
+- Length.bp.    1    36.081 110.892 32.086
+Start:  AIC=-15.92
+NAHRCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq     RSS     AIC
+- Length.bp.    1     0.002  54.996 -17.914
+- WAvgRate      1     0.230  55.224 -17.595
+- allRepCounts  1     1.340  56.335 -16.062
+<none>                       54.995 -15.916
+- maxRate       1    60.394 115.389  39.147
+
+Step:  AIC=-17.91
+NAHRCenters ~ allRepCounts + WAvgRate + maxRate
+
+               Df Sum of Sq     RSS     AIC
+- WAvgRate      1     0.296  55.292 -19.500
+<none>                       54.996 -17.914
+- allRepCounts  1     1.560  56.556 -17.760
++ Length.bp.    1     0.002  54.995 -15.916
+- maxRate       1    63.599 118.596  39.257
+
+Step:  AIC=-19.5
+NAHRCenters ~ allRepCounts + maxRate
+
+               Df Sum of Sq     RSS     AIC
+<none>                       55.292 -19.500
+- allRepCounts  1     2.194  57.486 -18.504
++ WAvgRate      1     0.296  54.996 -17.914
++ Length.bp.    1     0.068  55.224 -17.595
+- maxRate       1    65.725 121.017  38.814
+analysis/20220513_LocationPatterns/divideChromosomes/femBherer_fixedArms_5/
+[1] "### Load arguments"
+[1] "### Load packages"
+Loading required package: pacman
+Warning message:
+In dir.create(paste0(args[3], "/statAnalysis/")) :
+  'analysis/20220513_LocationPatterns/statAnalysis' already exists
+[1] "### Workspace visualization"
+Scale for 'x' is already present. Adding another scale for 'x', which will
+replace the existing scale.
+Scale for 'x' is already present. Adding another scale for 'x', which will
+replace the existing scale.
+Scale for 'x' is already present. Adding another scale for 'x', which will
+replace the existing scale.
+null device 
+          1 
+Warning messages:
+1: In getIdeoGR(data) :
+  geom(ideogram) need valid seqlengths information for accurate mapping,
+                 now use reduced information as ideogram... 
+2: In getIdeoGR(data) :
+  geom(ideogram) need valid seqlengths information for accurate mapping,
+                 now use reduced information as ideogram... 
+[1] "### Variable visualization"
+null device 
+          1 
+[1] "### Correlations between variables"
+null device 
+          1 
+There were 27 warnings (use warnings() to see them)
+null device 
+          1 
+[1] "### Multiple linear regression"
+Start:  AIC=-103.66
+invCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS      AIC
+- WAvgRate      1    0.9327 118.68 -104.043
+<none>                      117.75 -103.661
+- allRepCounts  1    4.5325 122.28  -97.918
+- Length.bp.    1    6.8195 124.57  -94.119
+- maxRate       1    9.3087 127.06  -90.063
+
+Step:  AIC=-104.04
+invCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS      AIC
+<none>                      118.68 -104.043
++ WAvgRate      1    0.9327 117.75 -103.661
+- allRepCounts  1    5.3132 124.00  -97.065
+- maxRate       1    8.6242 127.31  -91.663
+- Length.bp.    1   10.0381 128.72  -89.399
+Start:  AIC=-193.15
+NHCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- WAvgRate      1    0.0139 76.114 -195.11
+- allRepCounts  1    0.0949 76.195 -194.89
+- maxRate       1    0.2000 76.300 -194.61
+<none>                      76.100 -193.15
+- Length.bp.    1    9.9040 86.004 -170.07
+
+Step:  AIC=-195.11
+NHCenters ~ allRepCounts + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- allRepCounts  1    0.0861 76.200 -196.88
+- maxRate       1    0.1885 76.303 -196.60
+<none>                      76.114 -195.11
++ WAvgRate      1    0.0139 76.100 -193.15
+- Length.bp.    1   11.0618 87.176 -169.29
+
+Step:  AIC=-196.88
+NHCenters ~ Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- maxRate       1    0.1956 76.396 -198.35
+<none>                      76.200 -196.88
++ allRepCounts  1    0.0861 76.114 -195.11
++ WAvgRate      1    0.0051 76.195 -194.89
+- Length.bp.    1   12.1210 88.321 -168.62
+
+Step:  AIC=-198.35
+NHCenters ~ Length.bp.
+
+               Df Sum of Sq    RSS     AIC
+<none>                      76.396 -198.35
++ maxRate       1    0.1956 76.200 -196.88
++ allRepCounts  1    0.0933 76.303 -196.60
++ WAvgRate      1    0.0000 76.396 -196.35
+- Length.bp.    1   11.9260 88.322 -170.61
+Start:  AIC=-248.52
+NAHRCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+               Df Sum of Sq    RSS     AIC
+- Length.bp.    1    0.2869 58.374 -249.51
+<none>                      58.087 -248.52
+- WAvgRate      1    1.1742 59.261 -246.42
+- allRepCounts  1    3.3155 61.403 -239.14
+- maxRate       1   12.2373 70.324 -211.33
+
+Step:  AIC=-249.51
+NAHRCenters ~ allRepCounts + WAvgRate + maxRate
+
+               Df Sum of Sq    RSS     AIC
+<none>                      58.374 -249.51
++ Length.bp.    1    0.2869 58.087 -248.52
+- WAvgRate      1    0.9121 59.286 -248.33
+- allRepCounts  1    3.0966 61.471 -240.91
+- maxRate       1   11.9535 70.327 -213.32

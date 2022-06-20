@@ -1,0 +1,15 @@
+2022-06-09 11:17:49,287 - Starting fillWindowMeasurements.py
+2022-06-09 11:17:49,287 - Parameters
+
+    recombination map       : data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed
+    window coordinates      : report/20220519_tutorialLogisticModel/LargeClassifiedWindowsfemBherer/data/windows.txt
+    output directory        : report/20220519_tutorialLogisticModel/LargeClassifiedWindowsfemBherer/data//fillWindowMeasurements/
+
+2022-06-09 11:17:49,288 - Static data
+
+    inversion coordinates   : data/InversionsAnnotation_131Inv_20211117.csv
+    repeat coordinates      : data/genomicSuperDups.txt
+
+2022-06-09 11:17:49,288 - Loading data
+2022-06-09 11:17:49,682 - Calculating variables for each window
+2022-06-09 11:17:54,306 -     Files generated: report/20220519_tutorialLogisticModel/LargeClassifiedWindowsfemBherer/data//fillWindowMeasurements//chromRegions//windowData.txt

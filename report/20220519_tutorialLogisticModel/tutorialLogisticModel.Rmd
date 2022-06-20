@@ -1,0 +1,935 @@
+---
+title: "Tutorial for logistic model"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+bibliography: report/20220129_LocationPatterns/references.bib 
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+Following multiple tutorials about the logistic model, to understand it!
+The data is in this same folder.
+
+```{r, eval = F}
+if (!require("pacman")) install.packages("pacman")
+datadir="data/fillWindowMeasurements/chromRegions/"
+```
+
+# Prepare the data
+
+```{bash}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+cd /home/rgomez/Documents/PHD_Repos/20211117_PopRecombination/
+$ENVPY code/python/divideChromosomes.py -m data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed -b data/cytoBand.txt -f 0 -s 0.05 -r 800000 -o "report/20220519_tutorialLogisticModel/data" -d avgBherer
+```
+
+```{r Base-workspace}
+ pacman::p_load(ggplot2)
+
+  divChroms <- "data/divideChromosomes/avgBherer_COzones_0.05_800000/"
+  name <- "avgBherer_COzones_0.1_800000"
+  # PATHS
+  windowsFile <- paste0(divChroms,"/windows.txt")
+  densityFile <- paste0(divChroms,"/densities.txt")
+  extremesFile <- paste0(divChroms,"/extremes.txt")
+  centroFile <- paste0(divChroms,"/workspace.txt")
+  
+  # FILES
+  windows <- read.table(windowsFile, header = T, sep = "\t")
+    windows$Color <- "a"
+    windows[as.numeric(rownames(windows)) %% 2 == 1,"Color"]<-"b"
+  windows$Chromosome <- factor(windows$Chromosome, levels =  paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+    
+  density <- read.table(densityFile, header = T, sep = "\t")
+  density$Chromosome <- factor(density$Chromosome, levels = paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  
+  extremes <- read.table(extremesFile, header = T, sep = "\t")
+  extremes$Chromosome <- factor(extremes$Chromosome, levels = paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  
+  centromeres <- read.table(centroFile, header = T, sep = "\t")
+  centromeres$Chromosome <- factor(centromeres$Chromosome, levels =  paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  armLimits <-centromeres[grep("cen", centromeres$chromID,invert = T),]
+  centromeres<-centromeres[grep("cen", centromeres$chromID),]
+  starts <-  armLimits[grep("p", armLimits$chromID), c("Start", "Chromosome")]
+  ends<- armLimits[grep("q", armLimits$chromID), c("End", "Chromosome")]
+  
+  # PLOT
+  ggplot()+
+        geom_rect(data= centromeres,  aes(xmin = Start, xmax = End,  ymin = 0, ymax = Inf), fill = "blue4", alpha = 0.5)+
+        geom_vline(data=starts, aes(xintercept = Start), color = "orange")+geom_vline(data=ends, aes(xintercept = End), color = "orange")+
+        geom_rect(data=windows, aes(xmin = Start, xmax = End, fill = Color, ymin = 0, ymax = Inf), alpha = 0.3)+
+        geom_line(data=density,aes(x = pos, y = val))+
+        geom_point(data=extremes, aes(x = pos, y = val, color = Type))+
+        facet_wrap("Chromosome", scales = "free")+
+        scale_fill_manual(values=c("#737373", "#e1e5eb"), guide="none")+
+        scale_color_manual(values = c("#bd2b43", "#2b63bd"), guide = "none")+
+        ggtitle(name)
+
+```
+
+```{r Modified-workspace}
+windows <- data.frame()
+
+for (chrom in unique(extremes$Chromosome)) {
+  #Telomeres
+  minima <- extremes[which(extremes$Chromosome == chrom & extremes$Type == "Minima"),]
+  maxima <- extremes[which(extremes$Chromosome == chrom & extremes$Type == "Maxima"),]
+
+  minima<- minima[order(minima$pos)  ,]
+  maxima<- maxima[order(maxima$pos)  ,]
+  telomeric<-minima[c(1,2,nrow(minima)-1, nrow(minima)),]
+  telomeric$maxima<-c(maxima[c(1,2,nrow(maxima)),"pos"],NA)
+  
+  
+  #Centromeres
+  centromeric <- centromeres[centromeres$Chromosome == chrom,]
+
+  
+  # Overlaps
+  if (nrow(centromeric) != 0){
+    #Centromeres to maximums
+    centromeric$Start<-rev(maxima[maxima$pos <= centromeric$Start,"pos"])[1]
+    centromeric$End<-maxima[maxima$pos >= centromeric$End,"pos"][1]
+  
+    #Average centromeres
+    teloend<- telomeric$pos[2]
+    telomeric$pos[2]<-ifelse(teloend>=centromeric$Start,  (centromeric$Start+teloend)/2 , teloend) 
+    centromeric$Start<-ifelse(teloend>=centromeric$Start,  (centromeric$Start+teloend)/2, centromeric$Start) 
+    telostart<-telomeric$pos[3]
+    telomeric$pos[3]<-ifelse(telostart<=centromeric$End, (centromeric$End+ telostart)/2, telostart ) 
+    centromeric$End<-ifelse(telostart<=centromeric$End, (centromeric$End+ telostart)/2,  centromeric$End ) 
+  }
+  
+  #Positions
+  positions<-unique(c(telomeric$pos, centromeric$Start, centromeric$End))
+  positions<-positions[order(positions)]
+  
+  chromwins<-data.frame(Start = positions[1:length(positions)-1], End = positions[2:length(positions)], Chromosome = chrom)
+  chromwins$Color<- "arm"
+  if (nrow(centromeric) != 0){
+    chromwins[chromwins$Start %in% telomeric[c(1,3), "pos"],"Color"]<-"telomeric"
+    chromwins[chromwins$Start == centromeric$Start,"Color"]<-"centromeric"
+  }else{
+    chromwins[chromwins$Start %in% telomeric[c(3), "pos"],"Color"]<-"telomeric"
+  }
+  
+  windows <- rbind(windows,chromwins)
+}
+
+  ggplot()+
+        # geom_rect(data= centromeres,  aes(xmin = Start, xmax = End,  ymin = 0, ymax = Inf), fill = "blue4", alpha = 0.5)+
+        geom_vline(data=starts, aes(xintercept = Start), color = "orange")+geom_vline(data=ends, aes(xintercept = End), color = "orange")+
+        geom_rect(data=windows, aes(xmin = Start, xmax = End, fill = Color, ymin = 0, ymax = Inf), alpha = 0.3)+
+        geom_line(data=density,aes(x = pos, y = val))+
+        geom_point(data=extremes, aes(x = pos, y = val, color = Type))+
+        facet_wrap("Chromosome", scales = "free")+
+        # scale_fill_manual(values=c("#737373", "#e1e5eb"), guide="none")+
+        scale_color_manual(values = c("#bd2b43", "#2b63bd"), guide = "none")+
+        ggtitle(name)
+  
+write.table(windows, "data/windows.txt", quote = F, row.names = F, col.names = T, sep = "\t")
+```
+
+Load info
+
+```{bash}
+
+ENVPY="/home/rgomez/anaconda3/bin/python"
+cd "../../"
+$ENVPY code/python/fillWindowMeasurements.py -m data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed -w report/20220519_tutorialLogisticModel/data/windows.txt  -o report/20220519_tutorialLogisticModel/data/ -d "chromRegions"
+cd report/20220519_tutorialLogisticModel/
+```
+
+Data visualization
+
+```{r}
+
+### Variable visualization
+print("### Variable visualization")
+# =========================================================================== #
+
+pacman::p_load(ggdist, ggplot2, gghalves, reshape2, patchwork)
+
+visVars <- function(windowDatafile, name){
+  # Read file
+  windowData <- read.table(windowDatafile, sep = "\t", header = T)
+  
+  # Put chromosome factor in order
+  windowData$Chromosome <- factor(windowData$Chromosome, levels = paste(rep("chr", 22), as.character(c(1:22)), sep = ""))
+  windowData$chromID <- windowData$winID <- NULL
+  
+  # Melt data
+  windowDataMelted <- melt(windowData, id.vars = c( "Chromosome", "Start", "End", "Color")) 
+  
+  # Group info
+  windowDataMelted$dataGroup<- ifelse(windowDataMelted$variable %in% c("invCenters", "NHCenters", "NAHRCenters"), "Inversions", 
+                                      ifelse(windowDataMelted$variable %in% c("allRepCounts", "intraRepCounts"), "Repeats",
+                                             ifelse(windowDataMelted$variable %in% c("WAvgRate"), "Weighted average recRate",
+                                                    ifelse(windowDataMelted$variable %in% c("maxRate"), "Maximum recRate",  "Window length"))))
+  
+  # Add log repeats
+  windowDataMelted_replog <- windowDataMelted[windowDataMelted$dataGroup == "Repeats",]
+  windowDataMelted_replog$value <- log10(windowDataMelted_replog$value)
+  windowDataMelted_replog$dataGroup <- "Repeats_log10"
+  windowDataMelted<- rbind(windowDataMelted, windowDataMelted_replog)
+  
+  # Make list of plots
+  plot_list<-list()
+  for (group in unique(windowDataMelted$dataGroup)) {
+    
+    plotTable <- windowDataMelted[(windowDataMelted$value != -Inf) & (windowDataMelted$dataGroup == group),]
+    plot_list[[group]] <- ggplot(plotTable, aes(x = variable, y = value))+
+      # Half violin
+      ggdist::stat_halfeye(adjust = .5, width = .6, .width = 0, justification = -.2, point_colour = NA) +
+      # Boxplot 
+      geom_boxplot(width = .1, outlier.shape = NA) +
+      # Points
+      gghalves::geom_half_point_panel(side = "l", range_scale = .6,  alpha = .5, aes(color = Color))+
+      # scale_color_manual(values = c(rep("#3c7ae7",11),rep("#89b23e",11) ))+
+      # Adjust coordinates
+      coord_flip()+
+      # coord_flip( xlim = c(1.3, NA))+
+      # Adjust labels
+      theme(axis.title.y = element_blank(), legend.position = "top")+
+      # Title
+      ggtitle(group)
+  }
+  
+  # Plot list of plots
+  wrap_plots(plot_list)+ plot_annotation( title = name)+plot_layout(guides = 'collect') & theme(legend.position = 'bottom')
+}
+
+# visVars("analysis/20220509_LocationPatterns/fillWindowMeasurements/windowData_0_800000_avgBherer.txt", "avgBherer")
+
+# Detect analysis type and write figure
+visVars(windowDatafile =  "data/fillWindowMeasurements/chromRegions/windowData.txt", name="chromRegions" )
+
+
+
+
+```
+
+# Logistic regression
+http://www.sthda.com/english/articles/36-classification-methods-essentials/151-logistic-regression-essentials-in-r/
+
+Logistic regression is used to predict the class (or category) of individuals based on one or multiple predictor variables (x). It is used to model a **binary outcome**, that is a variable, which can have only two possible values: 0 or 1, yes or no, diseased or non-diseased, **inversion or not inversion**.
+
+Logistic regression belongs to a family, named Generalized Linear Model (GLM), developed for extending the linear regression model to other situations. Other synonyms are binary logistic regression, binomial logistic regression and logit model.
+
+Logistic regression does not return directly the class of observations. **It allows us to estimate the probability (p) of class membership.** The probability will range between 0 and 1. You need to decide the threshold probability at which the category flips from one to the other. By default, this is set to p = 0.5, but in reality it should be settled based on the analysis purpose.
+
+## The formula
+When you have multiple predictor variables, the logistic function looks like: **log[p/(1-p)] = b0 + b1\*x1 + b2\*x2 + ... + bn*xn**.
+
+b0 and b1 are the regression beta coefficients. A positive b1 indicates that increasing x will be associated with increasing p. Conversely, a negative b1 indicates that increasing x will be associated with decreasing p.
+
+**The quantity log[p/(1-p)] is called the logarithm of the odd; where the odds reflect the likelihood that the event will occur.** It can be seen as the **ratio of “successes” to “non-successes”**. Technically, odds are **the probability of an event divided by the probability that the event will not take place**. 
+
+For example, if the probability of being diabetes-positive is 0.5, the probability of “won’t be” is 1-0.5 = 0.5, and the odds are 1.0. Note that, the **probability can be calculated from the odds** as p = Odds/(1 + Odds).
+
+## The application
+
+```{r}
+# LOAD PACKAGES
+pacman::p_load(tidyverse,  caret)
+#   tidyverse for easy data manipulation and visualization
+#   caret for easy machine learning workflow
+
+```
+
+Logistic regression works for a data that contain **continuous and/or categorical predictor variables.**
+
+Performing the following steps might improve the accuracy of your model
+
+* Remove potential **outliers**
+* Make sure that the **predictor variables are normally distributed**. If not, you can use log, root, Box-Cox transformation.
+* **Remove highly correlated predictors** to minimize overfitting. The presence of highly correlated predictors might lead to an unstable model solution.
+
+> This last point is done with a step by step model selection...
+
+We’ll **randomly split the data** into training set (80% for building a predictive model) and test set (20% for evaluating the model). Make sure to set seed for reproducibility.
+
+```{r}
+# PREPARE THE DATA
+# Load
+winRegions <- read.table(paste0(datadir, "windowData.txt"), header = T)
+winRegions$withInversions <- ifelse(winRegions$invCenters == 0, 0, 1)
+# Split the data into training and test set
+set.seed(123)
+training.samples <- winRegions$withInversions  %>% 
+  createDataPartition(p = 0.8, list = FALSE)
+train.data  <- winRegions[training.samples, ]
+test.data <- winRegions[-training.samples, ]
+```
+
+The **simple logistic regression** is used to predict the probability of class membership based on one single predictor variable.
+
+The following R code builds a model to predict the probability of having NAHR inversions based on the number of repeats:
+
+```{r}
+# Simple logistic regression
+model <- glm( withInversions ~ Length.bp., data = train.data, family = binomial)
+summary(model)$coef
+```
+
+The output above shows the estimate of the regression beta coefficients and their significance levels. The intercept (b0) is -1.451 and the coefficient of Length.bp. variable is  9.556835e-08.
+
+The logistic equation can be written as p = exp(b0 + b1\*Length)/ [1 +  exp(b0 +b1\*Length)]. Using this formula, for each new repeat, you can predict the probability of the individuals in having an inversion.
+
+Predictions can be easily made using the function predict(). Use the option type = “response” to directly obtain the probabilities
+
+```{r}
+# Let's see with the test data
+probabilities <- model %>% predict(test.data, type = "response")
+predicted.classes <- ifelse(probabilities > 0.5, "pos", "neg")
+
+# In which % of cases are these predictions correct?
+mean(test.data$withInversions == ifelse(predicted.classes =="neg", 0, 1))
+```
+
+The logistic function gives an s-shaped probability curve illustrated as follow:
+
+```{r}
+train.data %>%
+  ggplot(aes(Length.bp., withInversions)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial")) +
+  labs(
+    title = "Logistic Regression Model", 
+    x = "Window Length",
+    y = "Probability of having inversions"
+    )
+```
+
+The **multiple logistic regression** is used to predict the probability of class membership based on multiple predictor variables.
+
+The R function glm(), for generalized linear model, can be used to compute logistic regression. You need to specify the option family = binomial, which tells to R that we want to fit logistic regression.
+
+```{r}
+# Fit the model
+model <- glm( withInversions ~ Length.bp. + allRepCounts + intraRepCounts + WAvgRate + maxRate+Color , data = train.data, family = binomial)
+# Summarize the model
+summary(model)$coef
+```
+From the output above, the coefficients table shows the beta coefficient estimates and their significance levels. Columns are:
+
+* Estimate: the intercept (b0) and the beta coefficient estimates associated to each predictor variable
+* Std.Error: the standard error of the coefficient estimates. This represents the accuracy of the coefficients. The larger the standard error, the less confident we are about the estimate.
+* z value: the z-statistic, which is the coefficient estimate (column 2) divided by the standard error of the estimate (column 3)
+* Pr(>|z|): The p-value corresponding to the z-statistic. The smaller the p-value, the more significant the estimate is.
+
+**An example of interpretation:** It can be seen that only 1 out of the 5 predictors is significantly associated to the outcome. 
+
+The coefficient estimate of the variable Length is b = 9.037051e-08, which is positive. This means that an increase in Length is associated with increase in the probability of having an inversion, and the other way around with negative coefficients.
+
+An important concept to understand, for interpreting the logistic beta coefficients, is the odds ratio. An odds ratio measures the association between a predictor variable (x) and the outcome variable (y). It represents the ratio of the odds that an event will occur (event = 1) given the presence of the predictor x (x = 1), compared to the odds of the event occurring in the absence of that predictor (x = 0).
+
+**For a given predictor (say x1), the associated beta coefficient (b1)** in the logistic regression function **corresponds to the log of the odds ratio for that predictor**.
+
+If the odds ratio is 2, then the odds that the event occurs (event = 1) are two times higher when the predictor x is present (x = 1) versus x is absent (x = 0).
+
+For example, the regression coefficient for Length is 9.037051e-08. This indicate that one unit increase in the length will increase the odds of having an inversion by exp(9.037051e-08)=1 time. 
+
+From the logistic regression results, it can be noticed that **many variables are not statistically significant. Keeping them in the model may contribute to overfitting**. Therefore, they should be eliminated. This can be done automatically using statistical techniques, including stepwise regression and penalized regression methods. This methods are described in the next section. Briefly, they consist of selecting an optimal model with a reduced set of variables, without compromising the model curacy.
+
+**We’ll make predictions using the test data** in order to evaluate the performance of our logistic regression model.
+
+The procedure is as follow:
+
+* Predict the class membership probabilities of observations based on predictor variables
+* Assign the observations to the class with highest probability score (i.e above 0.5)
+
+The R function predict() can be used to predict the probability of having an inversion, given the predictor values.
+
+The following R code categorizes individuals into two groups based on their predicted probabilities (p) of being diabetes-positive. Individuals, with p above 0.5 (random guessing), are considered as diabetes-positive.
+
+The model accuracy is measured as the proportion of observations that have been correctly classified. Inversely, the classification error is defined as the proportion of observations that have been misclassified.
+
+```{r}
+# Make predictions
+probabilities <- model %>% predict(test.data, type = "response")
+predicted.classes <- ifelse(probabilities > 0.5, "pos", "neg")
+# Model accuracy
+mean(test.data$withInversions == ifelse(predicted.classes =="neg", 0, 1))
+```
+
+You can also fit generalized additive models, **when linearity of the predictor cannot be assumed**. This can be done using the mgcv package:
+
+```{r}
+pacman::p_load(mgcv)
+# Fit the model
+gam.model <- gam(withInversions ~ Length.bp. + allRepCounts + intraRepCounts + WAvgRate +maxRate,
+                 data = train.data, family = "binomial")
+# Summarize model
+summary(gam.model )
+# Make predictions
+probabilities <- gam.model %>% predict(test.data, type = "response")
+predicted.classes <- ifelse(probabilities> 0.5, "pos", "neg")
+# Model accuracy
+mean(test.data$withInversions == ifelse(predicted.classes =="neg", 0, 1))
+```
+
+Logistic regression is limited to only two-class classification problems. There is an extension, called multinomial logistic regression, for **multiclass classification problem**.
+
+Note that, **the most popular method for multiclass tasks**, is the Linear Discriminant Analysis.
+
+# Multinomial logistic regression
+
+Multinomial logistic regression is used to model nominal outcome variables, in which the log odds of the outcomes are modeled as a linear combination of the predictor variables.
+
+```{r}
+# LOAD PACKAGES
+pacman::p_load(foreign,  nnet, ggplot2, reshape2)
+
+# PREPARE THE DATA
+# Load
+winRegions <- read.table(paste0(datadir, "windowData.txt"), header = T)
+winRegions$invsCollapsed <- with(winRegions,ifelse(invCenters==0, "none", ifelse(NHCenters==invCenters, "NH", ifelse(NAHRCenters==invCenters, "NAHR", "mixed"))))
+winRegions$invsCollapsed<-factor(winRegions$invsCollapsed)
+```
+
+A window may have no inversions or many inversions. This can depend on repeats, recombination, chromosome region, etc. 
+
+Below we use the multinom function from the nnet package to estimate a multinomial logistic regression model. There are other functions in other R packages capable of multinomial regression. We chose the multinom function because it does not require the data to be reshaped (as the mlogit package does) and to mirror the example code found in Hilbe’s Logistic Regression Models. 
+
+First, **we need to choose the level of our outcome that we wish to use as our baseline** and specify this in the relevel function. Then, we run our model using multinom. The multinom package does not include p-value calculation for the regression coefficients, so we calculate p-values using Wald tests (here z-tests).
+
+```{r}
+winRegions$invsCollapsed2 <- relevel(winRegions$invsCollapsed , ref = "none")
+test <- multinom(invsCollapsed2 ~  Length.bp. + allRepCounts + intraRepCounts + WAvgRate + maxRate+Color, data = winRegions)
+summary(test)
+z <- summary(test)$coefficients/summary(test)$standard.errors
+print("zeta")
+z
+print("pval")
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+# test invs
+winRegions$invCenters2 <- relevel(as.factor(winRegions$invCenters) , ref = "0")
+test <- multinom(invCenters2 ~  Length.bp. + allRepCounts + intraRepCounts + WAvgRate + maxRate+Color, data = winRegions)
+summary(test)
+z <- summary(test)$coefficients/summary(test)$standard.errors
+print("zeta")
+z
+print("pval")
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+
+# test NH
+winRegions$NHCenters2 <- relevel(as.factor(winRegions$NHCenters) , ref = "0")
+test <- multinom(NHCenters2 ~  Length.bp. + allRepCounts + intraRepCounts + WAvgRate + maxRate+Color, data = winRegions)
+summary(test)
+z <- summary(test)$coefficients/summary(test)$standard.errors
+print("zeta")
+z
+print("pval")
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+
+# test NAHR
+winRegions$NAHRCenters2 <- relevel(as.factor(winRegions$NAHRCenters) , ref = "0")
+test <- multinom(NAHRCenters2 ~  Length.bp. + allRepCounts + intraRepCounts + WAvgRate + maxRate+Color, data = winRegions)
+summary(test)
+z <- summary(test)$coefficients/summary(test)$standard.errors
+print("zeta")
+z
+print("pval")
+p <- (1 - pnorm(abs(z), 0, 1)) * 2
+p
+
+#
+exp(coef(test))
+head(pp <- fitted(test))
+```
+
+
+
+# Ordinal logistic regression
+
+Ordinal logistic regression is a statistical analysis method that can be used to model the
+relationship between an ordinal response variable and one or more explanatory variables. An
+ordinal variable is a categorical variable for which there is a clear ordering of the category levels.
+The explanatory variables may be either continuous or categorical. Estimating ordinal logistic
+regression models with statistical software is not difficult, but the interpretation of the model
+output can be cumbersome.
+
+Ordinal logistic regression is an extension of logistic regression (see StatNews #81) where the
+logit (i.e. the log odds) of a binary response is linearly related to the independent variables. If
+instead the response variable has k levels, then there are k-1 logits. A major assumption of
+ordinal logistic regression is the assumption of proportional odds: the effect of an independent
+variable is constant for each increase in the level of the response. Hence the output of an ordinal
+logistic regression will contain an intercept for each level of the response except one, and a
+single slope for each explanatory variable.
+
+Great care should be taken when interpreting the output from ordinal regression models. 
+
+The model assumes that each explanatory variable exerts the same effect on each
+cumulative logit. This is why the ordinal logistic regression model is also known as a
+proportional-odds model.
+
+Ordinal logistic regression models can be estimated in R: clm in the “ordinal” package, vglm in the “VGAM” package, polr in the “MASS”
+package, and lrm in the “rms” package. Besides knowing the parameterization of the cumulative logit implemented by a software
+package, a researcher must also be aware of the coding scheme and choice of reference level for
+categorical explanatory variables. 
+
+> R uses dummy coding (as in the recoding before, each variable compared to the same baseline). Effect coding, if I understood well, uses a transition matrix with the probabilities of changing one state to another. More info at: https://stats.oarc.ucla.edu/spss/faq/coding-systems-for-categorical-variables-in-regression-analysis/
+
+
+We calculate the odds of being in a specific category or less (e.g. 2 or less).
+
+```{r}
+
+pacman::p_load(foreign, ggplot2, MASS, Hmisc, reshape2, ordinal)
+
+winRegions <- read.table(paste0(datadir, "windowData.txt"), header = T)
+winRegions$invCenters<-factor(winRegions$invCenters, ordered = T)
+# 
+# m <- clm(invCenters ~ Length.bp.+Color+WAvgRate+allRepCounts, data=winRegions)
+m <- polr(invCenters ~ scale(Length.bp.)+Color+WAvgRate+allRepCounts, data=winRegions, Hess=T)
+
+summary(m)
+```
+
+We can also get confidence intervals for the parameter estimates. These can be obtained either by profiling the likelihood function or by using the standard errors and assuming a normal distribution. Note that profiled CIs are not symmetric (although they are usually close to symmetric). If the 95% CI does not cross 0, the parameter estimate is statistically significant.
+
+```{r}
+# (ci <- confint(m))# default method gives profiled CIs ?? not working...
+confint.default(m) # CIs assuming normality
+```
+
+
+Or we can get p-values
+```{r}
+## store table
+ctable <- coef(summary(m))
+
+## calculate and store p values
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+
+## combined table
+(ctable <- cbind(ctable, "p value" = p))
+```
+
+Tests are available to assess the assumption of proportional odds. In R, the nominal_test() function in the ordinal package can be used to test
+this assumption. 
+
+```{r}
+
+car::poTest(m)
+
+
+```
+
+On standarized coefficients: https://think-lab.github.io/d/205/
+Standardized coefficients are extremely valuable, mainly to (i) give a meaning to the coefficient affecting a predictor that has no natural metric and (ii) compare effects of predictors reported in different units.
+
+To achieve these two goals, I advise using the most straightforward, simple Agresti method of standardization:
+b∗A=b⋅σX
+
+Further, to improve the general relevance of the standardized coefficients, one can account for the sample dispersion of the outcome variable, and use fully standardized coefficients as first introduced by Menard (1995). When using Menard's standardization, one must choose and report the measure of pseudo-R-squared used:
+b∗M=b⋅σX⋅Rσlogit(Y^)
+
+Standardized coefficients don't change the model. If they are used as the main specification of the model, the variables need to be scaled accordingly, and the intercept should be transformed as the result. 
+
+In the edge prediction problem for rephetio, we use the R-package glmnet to perform lasso and ridge regression, in order to perform feature selection while fitting the model.
+
+In the light of the note above, we wanted to adapt the Artesi standardization to the tools we are using.
+Summary
+
+glmnet, by default, standardizes the predictor variables before fitting the model. After checking in the source code and testing (see below) we came to the conclusion that the computed coefficients were then reverse standardized, with the inverse of the Artesi transformation, in order to report the coefficients in their natural metric †.
+
+Hence, there are three way to use standardization with the glmnet package:
+
+* Untransformed variables, specifying standardize = FALSE: this corresponds to taking into account the units of the variables when fitting the regularisation. Because of the nature of regularization, this setting is usually undesirable and should be reserved to specific, well understood use-cases where keeping the variables in their natural metrics is justified. This is the only method where standardization of the coefficients after fitting of the model, as described in the note above, is appropriate.
+* Untransformed variables, keeping the default standardize = TRUE: This is the easiest option and advised for quick analysis. In order to get the standardized coefficients that actually were the result of the fitting process, apply the Agresti transformation.
+* Standardized variables, with standardize = FALSE: This last method has three key features: (i) it lets the user diagnose the regularisation in the correct units for the coefficients (using, e.g. glmnet:::plot.glmnet()); (ii) it lets the user deal differently with boolean or categorical variables if necessary; (iii) it makes obvious that the regularization has been done on transformed variables. The main disadvantage is that one must separately keep record of the scaling coefficients for future use of the model. If the variables are each standardized with the standard deviation (eg with scale()), this approach lead to the same model as the previous one.
+
+# Ordinal logistic regression - tutorial 2
+
+https://medium.com/evangelinelee/ordinal-logistic-regression-on-world-happiness-report-221372709095
+
+## Data upload
+
+
+```{r, eval = F}
+if (!require("pacman")) install.packages("pacman")
+datadir="data/fillWindowMeasurements/chromRegions/"
+```
+
+
+```{r loadData}
+
+pacman::p_load(foreign, ggplot2, MASS, Hmisc, reshape2, ordinal)
+
+winRegions <- read.table(paste0(datadir, "windowData.txt"), header = T)
+
+# Make factors for inversions
+winRegions$invCenters<-factor(winRegions$invCenters, ordered = T)
+winRegions$NHCenters<-factor(winRegions$NHCenters, ordered = T)
+winRegions$NAHRCenters<-factor(winRegions$NAHRCenters, ordered = T)
+
+# Change dimension of variables
+winRegions$Length.Mb <- winRegions$Length.bp./1000000
+winRegions$WAvgRate.perMb<- winRegions$WAvgRate * 1000000
+
+winRegions<-winRegions[,c("Chromosome", "Start", "End", "Color", "invCenters", "NHCenters", "NAHRCenters", "Length.Mb", "allRepCounts", "WAvgRate.perMb" )]
+```
+
+## Descriptive statistics
+
+```{r varDistribution}
+
+### Variable visualization
+print("### Variable visualization")
+# =========================================================================== #
+
+pacman::p_load(ggdist, ggplot2, gghalves, reshape2, patchwork)
+  
+windowData <- winRegions
+  # Put chromosome factor in order
+  windowData$Chromosome <- factor(windowData$Chromosome, levels = paste(rep("chr", 22), as.character(c(1:22)), sep = ""))
+  # windowData$chromID <- windowData$winID <- NULL
+  
+  # Melt data
+  windowDataMelted <- melt(windowData, id.vars = c( "Chromosome", "Start", "End", "Color")) 
+  windowDataMelted$value <- as.numeric(windowDataMelted$value)
+  
+  # Group info
+  windowDataMelted$dataGroup<- ifelse(windowDataMelted$variable %in% c("invCenters", "NHCenters", "NAHRCenters"), "Inversions", 
+                                      ifelse(windowDataMelted$variable %in% c("allRepCounts", "intraRepCounts"), "Repeats",
+                                             ifelse(windowDataMelted$variable %in% c("WAvgRate"), "Weighted average recRate",
+                                             ifelse(windowDataMelted$variable %in% c("WAvgRate.perMb"), "Weighted average recRate per Mb",
+                                             ifelse(windowDataMelted$variable %in% c("Length.Mb"), "Window length in Mb",
+                                                    ifelse(windowDataMelted$variable %in% c("maxRate"), "Maximum recRate",  "Window length"))))))
+
+  # Make list of plots
+  plot_list<-list()
+  for (group in unique(windowDataMelted$dataGroup)) {
+    
+    plotTable <- windowDataMelted[(windowDataMelted$value != -Inf) & (windowDataMelted$dataGroup == group),]
+    plot_list[[group]] <- ggplot(plotTable, aes(x = variable, y = value))+
+      # Half violin
+      ggdist::stat_halfeye(adjust = .5, width = .6, .width = 0, justification = -.2, point_colour = NA) +
+      # Boxplot 
+      geom_boxplot(width = .1, outlier.shape = NA) +
+      # Points
+      gghalves::geom_half_point_panel(side = "l", range_scale = .6,  alpha = .5, aes(color = Color))+
+      # scale_color_manual(values = c(rep("#3c7ae7",11),rep("#89b23e",11) ))+
+      # Adjust coordinates
+      coord_flip()+
+      # coord_flip( xlim = c(1.3, NA))+
+      # Adjust labels
+      theme(axis.title.y = element_blank(), legend.position = "top")+
+      # Title
+      ggtitle(group)
+  }
+  name = "chromRegions"
+  # Plot list of plots
+  wrap_plots(plot_list)+ plot_annotation( title = name)+plot_layout(guides = 'collect') & theme(legend.position = 'bottom')
+
+
+```
+
+Length, WAvgRate, Repeats and Inversions are all skewed, I think. 
+
+```{r groupDifferences}
+
+pacman::p_load(ggplot2, reshape2,  grid)
+
+winRegions_long<-melt(winRegions, id.vars = c("Start", "End", "Chromosome", "invCenters", "NHCenters", "NAHRCenters", "Color"))
+
+option <- "append" # empty o append
+# Make list of plots
+  plot_list<-list()
+  for (group in c("invCenters", "NHCenters", "NAHRCenters")) {
+    
+    # Make new table
+    winRegions_long$plotgroup<-winRegions_long[,group]
+    # winRegions_long$value <- as.numeric(winRegions_long$value)
+    winRegions$plotgroup <- winRegions[,group]
+    # Make main plot
+    p <- ggplot(winRegions_long)+
+      geom_boxplot(aes(x = plotgroup, group = plotgroup, fill = plotgroup, y = value ), outlier.alpha = 0 , alpha = 0.8)+
+      geom_point(aes(x = plotgroup, y = value ), alpha = 0.3, position = "jitter")+
+      facet_wrap(variable~., scales = "free")+
+      xlab("")+ylab("Variable Value")+
+      theme(legend.position = "none")+
+      ggtitle(group)
+
+  
+    # Make secondary plot
+    h<- ggplot(winRegions)+
+      geom_bar(aes(x= plotgroup, fill = plotgroup), position ="dodge")+
+      facet_grid(Color~. )+
+      xlab("")+
+      theme(legend.position = "none", axis.title.y = element_blank())+
+      ggtitle("")
+   
+
+   
+     if (option == "empty") {
+           gp <- ggplotGrob(p)
+          h_grob<-ggplotGrob(h)
+  
+          # Calculate empty area from main plot
+          empty.area <- gtable_filter(gp, "panel", trim = F)
+          empty.area <- empty.area$layout[sapply(empty.area$grob, function(x){class(x)[[1]]=="zeroGrob"}),]
+          
+          empty.area$t <- empty.area$t - 1 #extend up by 1 cell to cover facet header
+          empty.area$b <- empty.area$b + 1 #extend down by 1 cell to cover x-axis
+
+          # Add grob to main plot
+          gp0 <- gtable_add_grob(x = gp,
+                                 grobs = h_grob,
+                                 t = min(empty.area$t),
+                                 l = min(empty.area$l), 
+                                 b = max(empty.area$b), 
+                                 r = max(empty.area$r))
+
+            # Print plot
+            
+            plot_list[[group]] <- arrangeGrob(gp0)
+            
+     } else if (option == "append") {
+       
+        plot_list[[group]] <- arrangeGrob(p,h, nrow = 1, widths = c(3, 1) )
+        
+     }
+
+    }
+
+  
+  # Plot list of plots
+  wrap_plots(plot_list, ncol=1)+ plot_annotation( title = "Differences in each chromosomal variable between inversion count groups")
+
+
+```
+
+We can see some interesting relationships with Length, WavgRate and Repeats. Maybe we want to add Color as well. 
+
+## Scaling variables
+
+Standardized coefficients are extremely valuable, mainly to (i) give a meaning to the coefficient affecting a predictor that has no natural metric and (ii) compare effects of predictors reported in different units.
+
+To achieve these two goals, in https://think-lab.github.io/d/205/ it is advised to use the most straightforward, simple Agresti method of standardization, applied with the `scale()` function. 
+
+```{r, scaling}
+# An example
+winRegions$Length.Mb.Scaled <- scale(winRegions$Length.Mb)[,1]
+summary(winRegions[,c("Length.Mb","Length.Mb.Scaled")])
+hist(winRegions$Length.Mb)
+hist(winRegions$Length.Mb.Scaled)
+
+# The other vars
+winRegions$allRepCounts.Scaled<-scale(winRegions$allRepCounts)[,1]
+winRegions$WAvgRate.perMb.Scaled<-scale(winRegions$WAvgRate.perMb)[,1]
+
+```
+
+I'm not sure whether polr scales the variables or not, but anyways, scaling the a scaled variable will yield exactly the same results. The problem is if it de-scales them later. Anyways, it gives us errors when attempting to use un-scaled length, so I assume it does not scale variables by itself.
+
+## Fitting model
+
+Below is the R code for fitting the Ordinal Logistic Regression and get its coefficient table with p-values. I do it with the scaled variables.
+
+```{r fitModelScaled}
+
+# fit the proportional odds logistic regression model
+fit1 <- polr(invCenters ~ Length.Mb.Scaled + allRepCounts.Scaled + Color + WAvgRate.perMb.Scaled, data = winRegions, Hess = T)# get the p-values
+# store the coefficient table
+ctable <- round(coef(summary(fit1)), 4)
+# calculate and store p-values
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = F) * 2
+# combine coefficient table and p-values table
+(ctable <- cbind(ctable, "p value" = round(p, 4)))
+
+# get confidence intervals
+# profiled CIs
+ci <- round(confint(fit1), 4)
+# log odd coefficients
+or <- round(coef(fit1), 4)
+# convert coefficients into odds ratio, combine with CIs
+round(exp(cbind(OR = or, ci)), 4)
+```
+What happens if I don't scale?
+
+```{r fitModelScaled}
+
+# fit the proportional odds logistic regression model
+fit2 <- polr(invCenters ~ Length.Mb + allRepCounts + Color + WAvgRate.perMb, data = winRegions, Hess = T)# get the p-values
+# store the coefficient table
+ctable <- round(coef(summary(fit2)), 4)
+# calculate and store p-values
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = F) * 2
+# combine coefficient table and p-values table
+(ctable <- cbind(ctable, "p value" = round(p, 4)))
+
+# get confidence intervals
+# profiled CIs
+ci <- round(confint.default(fit2), 4)  #the other one did not work, but this taht assumes normality does
+# log odd coefficients
+or <- round(coef(fit2), 4)
+# convert coefficients into odds ratio, combine with CIs
+round(exp(cbind(OR = or, ci)), 4)
+```
+
+VERY different p-value results depending on what I scale, although significant and unsignificant more or less correlate... why?
+
+Can I transform standarized coefficients into natural coefficients?
+In the Agresti transformation, which we applied, the standarized coefficient = unstandarized coefficient * sd; or unstandarized coefficient = standarized coefficient / sd. 
+
+```{r stdToNatural_repeats}
+
+fit.t1<-polr(invCenters~allRepCounts.Scaled, winRegions)
+fit.t2<-polr(invCenters~allRepCounts, winRegions)
+
+scaledcoef_rep<-coef(fit.t1)["allRepCounts.Scaled"]
+sd_rep <- sd(winRegions$allRepCounts)
+(naturalcoef_rep <- scaledcoef_rep / sd_rep)
+(calculated_naturalcoef_rep<-coef(fit.t2)["allRepCounts"])
+
+
+```
+
+```{r stdToNatural_FromModels}
+# For length
+(naturalcoef_calculated <- coef(fit1)["Length.Mb.Scaled"] / sd(winRegions$Length.Mb))
+(naturalcoef_modeled <- coef(fit2)["Length.Mb"])
+# For repeats
+(naturalcoef_calculated <- coef(fit1)["allRepCounts.Scaled"] / sd(winRegions$allRepCounts))
+(naturalcoef_modeled <- coef(fit2)["allRepCounts"])
+
+# For recrate
+(naturalcoef_calculated <- coef(fit1)["WAvgRate.perMb.Scaled"] / sd(winRegions$WAvgRate.perMb))
+(naturalcoef_modeled <- coef(fit2)["WAvgRate.perMb"])
+```
+Yes! I choose scaled model for the example
+
+```{r defmodel}
+mod<-fit1
+summary(mod)
+```
+One way to calculate a p-value in this case is by comparing the t-value against the standard normal distribution, like a z test. Of course this is only true with infinite degrees of freedom, but is reasonably approximated by large samples, becoming increasingly biased as sample size decreases. This approach is used in other software packages such as Stata and is trivial to do. First we store the coefficient table, then calculate the p-values and combine back with the table.
+
+```{r defmodel_pvals}
+## store table
+ctable <- coef(summary(mod))
+
+## calculate and store p values
+p <- round(pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2, 8)
+
+## combined table
+(ctable <- cbind(ctable, "p value" = p))
+
+
+```
+We can also get confidence intervals for the parameter estimates. These can be obtained either by profiling the likelihood function or by using the standard errors and assuming a normal distribution. Note that profiled CIs are not symmetric (although they are usually close to symmetric). If the 95% CI does not cross 0, the parameter estimate is statistically significant.
+
+```{r defmodel_CIs}
+
+(ci <- confint(mod)) # default method gives profiled CIs
+(confint.default(mod)) # CIs assuming normality
+```
+The coefficients from the model can be somewhat difficult to interpret because they are scaled in terms of logs. Another way to interpret logistic regression models is to convert the coefficients into odds ratios. To get the OR and confidence intervals, we just exponentiate the estimates and confidence intervals.
+
+```{r defmodel_probs}
+## odds ratios
+# exp(coef(fit1))
+## OR and CI
+exp(cbind(OR = coef(mod), ci))
+```
+
+Example of interpretation (even though not significant): 
+- Those windows that are in centromeric regions are 1.76 times more likely to have more inversions than their counterparts of equal characteristics in non-centromeric regions. 
+- For each increase of 1sd in window size, a window is 3 times more likely to increase in inversion amount.
+
+> Question: p-value is way mor significant when using scaled, why?
+
+## Assumptions
+
+Since the Ordinal Logistic Regression model has been fitted, now we need to check the assumptions to ensure that it is a valid model. The assumptions of the Ordinal Logistic Regression are as follow and should be tested in order:
+
+* The dependent variable are ordered.
+* One or more of the independent variables are either continuous, categorical or ordinal.
+* No multi-collinearity.
+* Proportional odds
+    
+    
+### Proportional odds
+
+One of the assumptions underlying ordinal logistic (and ordinal probit) regression is that the relationship between each pair of outcome groups is the same. In other words, ordinal logistic regression assumes that the coefficients that describe the relationship between, say, the lowest versus all higher categories of the response variable are the same as those that describe the relationship between the next lowest category and all higher categories, etc. This is called the proportional odds assumption or the parallel regression assumption. Because the relationship between all pairs of groups is the same, there is only one set of coefficients.
+
+> About the Brant test
+https://stats.stackexchange.com/questions/503674/can-someone-explain-what-the-brant-test-in-r-does
+
+Harrell does recommend a graphical method for assessing the parallel slopes assumption. The values displayed in this graph are essentially (linear) predictions from a logit model, used to model the probability that y is greater than or equal to a given value (for each level of y), using one predictor (x) variable at a time. In order create this graph, you will need the Hmisc library.
+
+We will graph predicted logits from individual logistic regressions with a single predictor where the outcome groups are defined by apply >= n. If the difference between predicted logits for varying levels of a predictor (ex. Length), are the same whether the outcome is defined by apply >= n or apply >= n+1, then we can be confident that the proportional odds assumption holds.
+
+```{r propOdds}
+# Estimate values that will be graphed
+sf <- function(y) {
+  c('Y>=0' = qlogis(mean(y >= 0)),
+    'Y>=1' = qlogis(mean(y >= 1)),
+    'Y>=2' = qlogis(mean(y >= 2)),
+    'Y>=3' = qlogis(mean(y >= 3)),
+    'Y>=4' = qlogis(mean(y >= 4)),
+    'Y>=5' = qlogis(mean(y >= 5)))
+}
+
+# Call function sf on several subsets of the data defined by the predictors
+# Testing with natural factors because blah
+(s <- with(winRegions, summary(as.numeric(as.character(invCenters)) ~ Length.Mb + allRepCounts +Color + WAvgRate.perMb, fun=sf)))
+
+# (s <- with(winRegions, summary(as.numeric(as.character(invCenters)) ~ Length.Mb.Scaled + allRepCounts.Scaled +Color + WAvgRate.perMb.Scaled, fun=sf)))
+
+
+
+
+```
+
+The table above displays the (linear) predicted values we would get if we regressed our dependent variable on our predictor variables one at a time, without the parallel slopes assumption. We can evaluate the parallel slopes assumption by running a series of binary logistic regressions with varying cutpoints on the dependent variable and checking the equality of coefficients across cutpoints. We thus relax the parallel slopes assumption to checks its tenability. To accomplish this, we transform the original, ordinal, dependent variable into a new, binary, dependent variable which is equal to zero if the original, ordinal dependent variable (here apply) is less than some value a, and 1 if the ordinal variable is greater than or equal to a (note, this is what the ordinal regression model coefficients represent as well). This is done for k-1 levels of the ordinal variable and is executed by the as.numeric(apply) >= a coding below.
+
+```{r}
+# We will make a reference point  substracting Y>=1 to all variables
+t<-s
+t[,7] <- t[,7]-t[,3]
+t[,6] <- t[,6]-t[,3]
+t[,5] <- t[,5]-t[,3]
+t[,4] <- t[,4]-t[,3]
+t[,3] <- t[,3]-t[,3]
+
+
+
+plot(t, which=1:6, pch=1:6, xlab='logit', main=' ', xlim=range(s[,3:5]))
+```
+
+Once we are done assessing whether the assumptions of our model hold, we can obtain predicted probabilities, which are usually easier to understand than either the coefficients or the odds ratios. 
+We do this by creating a new dataset of all the values to use for prediction: we vary the continuous values for each value in discrete variables.
+
+```{r}
+
+newdat <- data.frame(
+  Color = rep(c("centromeric", "telomeric", "arm"), 100),
+  Length.Mb =rep(seq(min(winRegions$Length.Mb), max(winRegions$Length.Mb), length.out = 100),3),
+  allRepCounts =rep(seq(min(winRegions$allRepCounts), max(winRegions$allRepCounts), length.out = 100),3),
+  WAvgRate.perMb =rep(seq(min(winRegions$WAvgRate.perMb), max(winRegions$WAvgRate.perMb), length.out = 100),3)
+  
+  )
+
+newdat <- cbind(newdat, predict(fit2, newdat, type = "probs"))
+
+##show first few rows
+head(newdat)
+
+lnewdat <- melt(newdat, id.vars = c("Length.Mb", "allRepCounts", "Color", "WAvgRate.perMb"),value.name="Probability", variable.name = "Level")
+
+ggplot(lnewdat, aes(x = allRepCounts, y = Probability, colour = Level)) +
+  geom_line() + facet_grid(Color ~ ., labeller="label_both")
+
+
+```
+

@@ -1,0 +1,10 @@
+Parameters
+
+    recombination map       : data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed
+    band file               : data/cytoBand.txt
+    numer of windows        : 5 
+    crossover zone strength : 0.1
+    crossover zone replicas : 800000
+    output directory        : analysis/20220512_LocationPatterns/divideChromosomes/
+    seed:                   : 1837119237
+

@@ -1,0 +1,15 @@
+2022-06-09 09:32:51,755 - Starting fillWindowMeasurements.py
+2022-06-09 09:32:51,755 - Parameters
+
+    recombination map       : data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed
+    window coordinates      : report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data/windows.txt
+    output directory        : report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data//fillWindowMeasurements/
+
+2022-06-09 09:32:51,755 - Static data
+
+    inversion coordinates   : data/InversionsAnnotation_131Inv_20211117.csv
+    repeat coordinates      : data/genomicSuperDups.txt
+
+2022-06-09 09:32:51,755 - Loading data
+2022-06-09 09:32:52,215 - Calculating variables for each window
+2022-06-09 09:32:57,623 -     Files generated: report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data//fillWindowMeasurements//chromRegions//windowData.txt

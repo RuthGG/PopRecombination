@@ -1,0 +1,6 @@
+Parameters
+
+    feature file            : data/genomicSuperDups_coords.bed
+    maxmin strength         : 0.1
+    output directory        : analysis/20220516_LocationPatterns/GATfiles/Isochores/
+

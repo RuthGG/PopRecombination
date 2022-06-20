@@ -1,0 +1,189 @@
+---
+title: "Ordinal logistic model on large, classified windows data"
+author: "Ruth Gómez Graciani"
+output:
+  pdf_document: default
+header-includes:
+ \usepackage{float}
+ \floatplacement{figure}{H}
+---
+# Prepare the data
+
+```{r child = '01PrepareTheData_avgBherer.Rmd'}
+```
+
+\newpage
+
+# Numerical categories
+
+## Descriptive statistics
+
+```{r child = '02ExploreTheData_numCategories.Rmd'}
+```
+
+\newpage
+
+## Total inversions model
+
+```{r, include=FALSE}
+# Inversion type
+yVar<-"invCategory"
+
+# Scaled/notScaled
+xVars<- "Length.Mb + allRepCounts + Color + WAvgRate.perMb" 
+
+# Formula
+myFormula<-paste0(yVar,"~", xVars)
+xVarsVector<-strsplit(xVars, " [+] ")[[1]]
+
+# Samples for prediction
+samples<-data.frame(vars=xVarsVector, sam=c(50,4,0,4), names=c(NA,"Low, Med-low, Med-high, High", "centromeric, arm, telomeric", "Low, Med-low, Med-high, High"), stringsAsFactors = F )
+
+# Pass to file
+save(yVar,xVars,myFormula,xVarsVector,samples , file= "data/analysisParams.RData")
+```
+
+
+```{r child = '03invAnalysis.Rmd'}
+```
+
+\newpage
+
+
+## NH inversions model
+
+```{r, include=FALSE}
+# Inversion type
+yVar<-"NHCategory"
+
+# Scaled/notScaled
+xVars<- "Length.Mb + allRepCounts + Color + WAvgRate.perMb" 
+
+# Formula
+myFormula<-paste0(yVar,"~", xVars)
+xVarsVector<-strsplit(xVars, " [+] ")[[1]]
+
+# Samples for prediction
+samples<-data.frame(vars=xVarsVector, sam=c(50,4,0,4), names=c(NA,"Low, Med-low, Med-high, High", "centromeric, arm, telomeric", "Low, Med-low, Med-high, High"), stringsAsFactors = F )
+
+# Pass to file
+save(yVar,xVars,myFormula,xVarsVector,samples , file= "data/analysisParams.RData")
+```
+
+
+```{r child = '03invAnalysis.Rmd'}
+```
+
+\newpage
+
+## NAHR inversions model
+
+```{r, include=FALSE}
+# Inversion type
+yVar<-"NAHRCategory"
+
+# Scaled/notScaled
+xVars<- "Length.Mb + allRepCounts + Color + WAvgRate.perMb" 
+
+# Formula
+myFormula<-paste0(yVar,"~", xVars)
+xVarsVector<-strsplit(xVars, " [+] ")[[1]]
+
+# Samples for prediction
+samples<-data.frame(vars=xVarsVector, sam=c(50,4,0,4), names=c(NA,"Low, Med-low, Med-high, High", "centromeric, arm, telomeric", "Low, Med-low, Med-high, High"), stringsAsFactors = F )
+
+# Pass to file
+save(yVar,xVars,myFormula,xVarsVector,samples , file= "data/analysisParams.RData")
+```
+
+```{r child = '03invAnalysis.Rmd'}
+```
+
+
+# Descriptive categories
+
+## Descriptive statistics
+
+```{r child = '02ExploreTheData_charCategories.Rmd'}
+```
+
+\newpage
+
+## Total inversions model
+
+```{r, include=FALSE}
+# Inversion type
+yVar<-"invCategory"
+
+# Scaled/notScaled
+xVars<- "Length.Mb + allRepCounts + Color + WAvgRate.perMb"
+
+# Formula
+myFormula<-paste0(yVar,"~", xVars)
+xVarsVector<-strsplit(xVars, " [+] ")[[1]]
+
+# Samples for prediction
+samples<-data.frame(vars=xVarsVector, sam=c(50,4,0,4), names=c(NA,"Low, Med-low, Med-high, High", "centromeric, arm, telomeric", "Low, Med-low, Med-high, High"), stringsAsFactors = F )
+
+# Pass to file
+save(yVar,xVars,myFormula,xVarsVector,samples , file= "data/analysisParams.RData")
+```
+
+
+```{r child = '03invAnalysis.Rmd'}
+```
+
+\newpage
+
+
+## NH inversions model
+
+```{r, include=FALSE}
+# Inversion type
+yVar<-"NHCategory"
+
+# Scaled/notScaled
+xVars<- "Length.Mb + allRepCounts + Color + WAvgRate.perMb"
+
+# Formula
+myFormula<-paste0(yVar,"~", xVars)
+xVarsVector<-strsplit(xVars, " [+] ")[[1]]
+
+# Samples for prediction
+samples<-data.frame(vars=xVarsVector, sam=c(50,4,0,4), names=c(NA,"Low, Med-low, Med-high, High", "centromeric, arm, telomeric", "Low, Med-low, Med-high, High"), stringsAsFactors = F )
+
+# Pass to file
+save(yVar,xVars,myFormula,xVarsVector,samples , file= "data/analysisParams.RData")
+```
+
+
+```{r child = '03invAnalysis.Rmd'}
+```
+
+
+\newpage
+
+## NAHR inversions model
+
+This cannot be done with ordinal logistic regression because we have only 2 categories, we would make a binomial logistic regression.
+
+<!-- ```{r, include=FALSE} -->
+<!-- # Inversion type -->
+<!-- yVar<-"NAHRCategory" -->
+
+<!-- # Scaled/notScaled -->
+<!-- xVars<- "Length.Mb + allRepCounts + Color + WAvgRate.perMb" -->
+
+<!-- # Formula -->
+<!-- myFormula<-paste0(yVar,"~", xVars) -->
+<!-- xVarsVector<-strsplit(xVars, " [+] ")[[1]] -->
+
+<!-- # Samples for prediction -->
+<!-- samples<-data.frame(vars=xVarsVector, sam=c(50,4,0,4), names=c(NA,"Low, Med-low, Med-high, High", "centromeric, arm, telomeric", "Low, Med-low, Med-high, High"), stringsAsFactors = F ) -->
+
+<!-- # Pass to file -->
+<!-- save(yVar,xVars,myFormula,xVarsVector,samples , file= "data/analysisParams.RData") -->
+<!-- ``` -->
+
+<!-- ```{r child = '03invAnalysis.Rmd'} -->
+<!-- ``` -->

@@ -25,24 +25,23 @@ parser = argparse.ArgumentParser(description='Make annotation file with ERRs for
 parser.add_argument("-l", "--lmap", type=str,metavar = "FILE",required=True,   help="likelihood-based map")
 parser.add_argument("-p","--pvalues", type=str,metavar = "STR",required=True,   help="comma-separated list of p-values to determine ERRs")
 parser.add_argument("-o", "--out", type=str,metavar = "DIR", default = "",  help="output directory")
-parser.add_argument("-d", "--description", type = str, metavar = "STR", default = "", help = "run description, recommended to start with '_'")
+parser.add_argument("-d", "--description", type = str,required = True, metavar = "STR", default = "", help = "run description")
 
 args = parser.parse_args()
 (lmapFile, pvalues, outDir, runName) = ( args.lmap, args.pvalues, args.out, args.description)
 
 # %%  Test arguments
-# lmapFile = "../../data/SpenceSong_hg19_recMaps_processed/CEU_SRR.bed"
-# pvalues = '0.01,0.001,0.0001'
+# lmapFile = "../../data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed"
+# pvalues = '0.001,0.01,0.1,0.999,0.99,0.9'
 # outDir = "../../tmp"
 # runName = "test"
 
 # %%  Set directories and log info
-outDir = outDir+"/"+datetime.now().strftime("%Y%m%d")+"_recMapAnnotation"+runName
+outDir = outDir+"/GATfiles/Annotations/"
 
-if not os.path.exists(outDir):
-    os.makedirs(outDir)
+os.makedirs(outDir, exist_ok=True)
 
-logging.basicConfig(filename=outDir+"/log.txt", filemode='w',format='%(asctime)s - %(message)s', level=logging.INFO)
+logging.basicConfig(filename=outDir+"/log_"+runName+".txt", filemode='w',format='%(asctime)s - %(message)s', level=logging.INFO)
 
 logging.info("Starting recMapAnnotation.py")
 
@@ -57,7 +56,7 @@ logging.info("""Parameters
 logging.info( "Loading data")
 # -------------------------------------
 
-recRates = pd.read_csv(lmapFile, sep = "\t", header = None)
+recRates = pd.read_csv(lmapFile, sep = "\t", header = 0)
 recRates.set_axis(["Chrom", "start", "end", "recrate_base_gen"], axis = 1, inplace= True)
 
 pvals = [float(x) for x in pvalues.split(",")]
@@ -89,5 +88,8 @@ for sig in pvals:
 logging.info( "Saving annotations file")
 # -------------------------------
 
-annotations.to_csv("{}/annotations.bed", sep = "\t", header=False, index = False)
+annotations.to_csv("{}/annotations_{}.bed".format(outDir, runName), sep = "\t", header=False, index = False)
+
+# %% End
+logging.info("Finished")
 

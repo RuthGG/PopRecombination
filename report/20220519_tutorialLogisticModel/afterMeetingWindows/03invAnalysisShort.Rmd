@@ -1,0 +1,129 @@
+<!--
+---
+ title: "Ordinal logistic model on large windows data - chapter 3"
+ author: "Ruth Gómez Graciani"
+ output:
+   pdf_document: default
+ header-includes:
+  \usepackage{float}
+  \floatplacement{figure}{H}
+---
+-->
+
+```{r, include=FALSE}
+if (!require("pacman")) install.packages("pacman")
+# set conditions for code output
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, error=TRUE,fig.pos = "!H")
+showcode=FALSE #for include or echo - echo=showcode 
+runbash=FALSE # for eval=runbash
+runR=TRUE #for eval=runR
+load(file= "data/winRegions.RData")
+load(file= "data/analysisParams.RData")
+```
+
+
+<!-- Model fitting -->
+```{r, echo=showcode, eval=runR}
+pacman::p_load(MASS)
+mod<-polr(myFormula, data = winRegions, Hess = T)
+# summary(mod)
+
+```
+
+<!-- Pvalue calculation -ctable -->
+```{r, echo=FALSE, eval=runR}
+## Store summary table
+ctable <- coef(summary(mod))
+
+## Calculate and store p values
+p <- round(pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2, 8)
+
+## combined table
+ctable <- cbind(ctable, "p value" = p)
+
+# knitr::kable(ctable)
+
+
+
+```
+
+<!-- Confidence interval calculation -->
+```{r , echo=FALSE, eval=runR}
+# print("Profiling likelihod")
+ci <- confint(mod) # default method gives profiled CIs
+# print("Assuming a normal distribtuion")
+# ci<-confint.default(mod) # CIs assuming normality
+# knitr::kable(ci)
+```
+
+<!-- Confidence interval for Odds ratios -->
+```{r , echo=FALSE, eval=runR}
+CIodds<-data.frame(exp(cbind(OR = coef(mod), ci)))
+colnames(CIodds)<-c("Odds Ratio", "2.5%", "97.5%")
+# knitr::kable(CIodds)
+```
+
+<!-- Plot cor Confidence Inteval Odds ratios - CIoddsplot -->
+```{r, echo=showcode, eval=runR}
+pacman::p_load("ggplot2")
+
+# Finally, a summary of the model
+CIodds$Variable<-rownames(CIodds)
+ctable<-data.frame(ctable)
+ctable$Variable<-rownames(ctable)
+
+CIodds<-merge(CIodds, ctable)
+CIodds$sig<-ifelse(CIodds$p.value < 0.05, T, F)
+
+CIoddsplot<-ggplot(CIodds)+geom_point(aes(x = Variable, y = `Odds Ratio`) )+
+  geom_errorbar(aes(ymin=`2.5%`, ymax=`97.5%`, x=Variable), width=.1, alpha = 0.5)+
+  geom_text(aes(x = Variable, y = Inf, label = round(p.value, 3), color = sig), vjust = 1.5, size = 3)+
+  scale_color_manual(values=c("FALSE"="black","TRUE"="red"))+
+  theme(legend.position = "none")+
+  geom_hline(yintercept=1,  alpha = 0.3)+
+  ggtitle("Odds ratios calculated from coefficients")
+
+
+  
+```
+
+<!-- Misclassification / Goodness of fit -->
+```{r, include = FALSE, eval = FALSE}
+
+# Misclassification error
+#Compute confusion table and misclassification error
+predictOLR <-  predict(mod,winRegions) 
+cTab <- table(winRegions$invCategory, predictOLR)
+mean(as.character(winRegions$invCategory) != as.character(predictOLR))
+
+# Load the DescTools package for calculate the R square
+pacman::p_load("DescTools")
+
+# Calculate the R Square
+PseudoR2(mod, which = c("CoxSnell","Nagelkerke","McFadden"))
+```
+
+<!-- Proportional odds / Brant Test - btest-->
+```{r, include = FALSE, eval=runR,error=TRUE}
+pacman::p_load("brant", "Hmisc")
+btest<-brant(mod)
+```
+
+
+
+```{r, echo = showcode, eval=runR,error=TRUE}
+pacman::p_load(ggpubr)
+
+pvalsb<-data.frame(btest[,3])
+pvalsb$Variable<-rownames(pvalsb)
+
+ctable<-merge(ctable, pvalsb)
+ctable$OddsRatio<-exp(ctable$Value)
+ctable<-ctable[,c("Variable","Value","OddsRatio", "Std..Error", "t.value", "p.value", "btest...3.")]
+colnames(ctable)<-c("Variable", "log(OddsRatio)", "OddsRatio", "Std.Error", "t.value", "p.value", "Brant p.value")
+
+knitr::kable(ctable, caption=paste0("Model summary for ", yVar))
+
+
+```
+

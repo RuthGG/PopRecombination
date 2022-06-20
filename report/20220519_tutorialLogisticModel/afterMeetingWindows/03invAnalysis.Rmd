@@ -1,0 +1,260 @@
+<!--
+---
+ title: "Ordinal logistic model on large windows data - chapter 3"
+ author: "Ruth Gómez Graciani"
+ output:
+   pdf_document: default
+ header-includes:
+  \usepackage{float}
+  \floatplacement{figure}{H}
+---
+-->
+
+```{r, include=FALSE}
+if (!require("pacman")) install.packages("pacman")
+# set conditions for code output
+# knitr::opts_chunk$set(message=FALSE, warning=FALSE, error=TRUE,fig.pos = "!H")
+showcode=FALSE #for include or echo - echo=showcode 
+runbash=FALSE # for eval=runbash
+runR=TRUE #for eval=runR
+load(file= "data/winRegions.RData")
+load(file= "data/analysisParams.RData")
+```
+
+<!-- Example for Analysis Params -->
+
+```{r, include=FALSE, eval=FALSE}
+
+# Inversion type
+yVar<-"invCategory"
+winRegions$WAvgRate.perMb.scaled<-scale(winRegions$WAvgRate.perMb)
+# Scaled/notScaled
+xVars<- "Length.Mb + log10RepCounts + Color + WAvgRate.perMb.scaled" 
+
+# Formula
+myFormula<-paste0(yVar,"~", xVars)
+xVarsVector<-strsplit(xVars, " [+] ")[[1]]
+
+# Samples for prediction
+samples<-data.frame(vars=xVarsVector, sam=c(50,4,0,4), names=c(NA,"Low, Med-low, Med-high, High", "centromeric, arm, telomeric", "Low, Med-low, Med-high, High"), stringsAsFactors = F )
+
+# Pass to file
+# save(yVar,xVars,myFormulaxVarsVector,samples , file= "data/analysisParams.RData")
+```
+
+### Model fitting
+
+```{r, echo=showcode, eval=runR}
+pacman::p_load(MASS)
+mod<-polr(myFormula, data = winRegions, Hess = T)
+summary(mod)
+
+```
+
+We compare the t-value against the standard normal distribution to calculate the p-value. 
+
+```{r, echo=showcode, eval=runR}
+## Store summary table
+ctable <- coef(summary(mod))
+
+## Calculate and store p values
+p <- round(pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2, 8)
+
+## combined table
+ctable <- cbind(ctable, "p value" = p)
+
+knitr::kable(ctable)
+
+
+
+```
+
+We can also get confidence intervals for the parameter estimates. These can be obtained either by profiling the likelihood function or by using the standard errors and assuming a normal distribution. Note that profiled CIs are not symmetric (although they are usually close to symmetric). If the 95% CI does not cross 0, the parameter estimate is statistically significant.
+
+```{r , echo=showcode, eval=runR}
+# print("Profiling likelihod")
+# (ci <- confint(mod)) # default method gives profiled CIs
+# print("Assuming a normal distribtuion")
+ci<-confint.default(mod) # CIs assuming normality
+knitr::kable(ci)
+```
+
+We convert the coefficients into odds ratios. To get the OR and confidence intervals, we just exponentiate the estimates and confidence intervals (here I used the likelihood confidence intervals).
+
+```{r , echo=showcode, eval=runR}
+CIodds<-data.frame(exp(cbind(OR = coef(mod), ci)))
+colnames(CIodds)<-c("Odds Ratio", "2.5%", "97.5%")
+knitr::kable(CIodds)
+```
+Example of interpretation: "For 1 unit increase in `r rownames(CIodds[1,])`, a window is `r CIodds[1,1]` times more likely to increase in inversion amount category."
+
+```{r, echo=showcode, eval=runR}
+pacman::p_load("ggplot2")
+
+# Finally, a summary of the model
+CIodds$Variable<-rownames(CIodds)
+ctable<-data.frame(ctable)
+ctable$Variable<-rownames(ctable)
+
+CIodds<-merge(CIodds, ctable)
+CIodds$sig<-ifelse(CIodds$p.value < 0.05, T, F)
+
+ggplot(CIodds)+geom_point(aes(x = Variable, y = `Odds Ratio`) )+
+  geom_errorbar(aes(ymin=`2.5%`, ymax=`97.5%`, x=Variable), width=.1, alpha = 0.5)+
+  geom_text(aes(x = Variable, y = Inf, label = round(p.value, 3), color = sig), vjust = 1.5, size = 3)+
+  scale_color_manual(values=c("FALSE"="black","TRUE"="red"))+
+  theme(legend.position = "none")+
+  geom_hline(yintercept=1, width=.1, alpha = 0.3)+
+  ggtitle("Odds ratios calculated from coefficients")
+
+
+  
+```
+
+
+### Proportional odds assessment
+
+
+
+<!-- We need to check the assumptions to ensure that it is a valid model. The assumptions of the Ordinal Logistic Regression are as follow and should be tested in order: -->
+
+<!-- 1. The dependent variable is ordered. -->
+<!-- 1. One or more of the independent variables are either continuous, categorical or ordinal. -->
+<!-- 1. No multi-collinearity. -->
+<!-- 1. Proportional odds -->
+
+<!-- We know that our dataset satisfies the two first assumptions.  We have to test the other two. -->
+
+
+Now we should test the proportional odds or parallel regression assumption. If it is satisfied, the coefficients are valid for all the cases (i.e. the same coefficient is valid for increasing from 0 to 1 inversions, from 1 to 2, etc.). If this assumption is violated, different models are needed to describe the relationship between each pair of outcome groups.
+
+We test the parallel regression assumption with a Brant test:
+
+```{r, include = TRUE, eval=runR,error=TRUE}
+pacman::p_load("brant", "Hmisc")
+btest<-brant(mod)
+```
+
+```{r, echo=showcode, eval=runR,error=TRUE}
+knitr::kable(btest)
+```
+
+\newpage
+We can also evaluate the parallel regression visually. We transform the ordinal dependent variable with k categories into a series of k-1 binary variables that indicate whether the dependent value is above or below a cutpoint (e.g. windows with at least 2 inversions vs windows with less than 2 inversions). We then calculate the observed Log Odds Ratio for each binary variable across multiple value ranges of the independent variables. The lines should be approximately parallel, that each independent variable affects the probability of increasing by 1 level the inversion count in the same way, for all transitions, and that we don't need a specific model for each level increase.
+
+```{r , echo=showcode, eval=runR, fig.cap="Binary logistic regressions with varying cutpoints on the dependent variable.", fig.height=7 }
+pacman::p_load("Hmisc", "reshape2")
+
+# Estimate values that will be graphed
+sf <- function(y) {
+  nmax<-length(levels(winRegions[,yVar]))-1
+  vec<-c()
+  names<-c()
+  for (n in c(0:nmax)){
+    names <- c(names, paste0("Y>=",n))
+   vec<-c(vec, qlogis(mean( y >= n)))
+  }
+  names(vec)<-names
+  return(vec)
+}
+
+
+# Call function sf on several subsets of the data defined by the predictors
+winRegions$numVar<-winRegions[,yVar]
+levels(winRegions$numVar) <- c(1:length(levels(winRegions$numVar)))-1
+winRegions$numVar <-as.numeric(as.character(winRegions$numVar))  
+  
+s<-summary(as.formula(paste0("numVar ~ ", xVars)), data=winRegions, fun=sf)
+
+# Get column names
+namevec<-attributes(s)$vname
+for(n in c(1:length(namevec))){  ifelse(namevec[n]=="", namevec[n] <- stored, stored <-namevec[n]) }
+
+# Transform to dataframe
+df<-data.frame(unclass(s))
+df$categValues<-rownames(df)
+df$categories<-namevec
+
+# Melt dataframe
+mdf<-melt(df, id.vars = c("categValues", "categories", "N"))
+
+#Generate variable levels
+cat<-unique(winRegions[,yVar])
+cat<-cat[order(cat)]
+ncat <- length(levels(winRegions[,yVar]))-1 # number of categories
+varlevels<-c(">=0")
+for(n in c(1:ncat)){varlevels <- c(varlevels, paste0( paste(cat[c(1:n)], collapse = "+"), " vs ", paste(cat[c((n+1):length(cat))], collapse = "+")))}
+levels(mdf$variable)<-varlevels
+
+# Plot
+ggplot(mdf[mdf$categories !="Overall" & mdf$variable != ">=0",], aes(x = categValues, y = (value), color=variable, group = variable))+
+  geom_point()+geom_line()+
+  facet_wrap(categories~., scales = "free")+
+  scale_color_manual(values = c("#440154","#31688e","#35b779" ))+ #, "#fde725"
+  ggtitle("Proportional odds visual test")+
+  ylab("Log Odds Ratio")+xlab("")+
+   guides(color=guide_legend(title=yVar))+ theme(legend.position = "top", axis.text.x = element_text(size=8))
+
+```
+\newpage 
+
+### Predicted probabilites
+
+Although our objective is to describe the dataset, predicted probabilities are usually easier to understand than either the coefficients or the Odds Ratios. 
+
+```{r, echo=showcode, eval=runR}
+
+vectors<-list()
+for (var in xVarsVector) {
+
+  if(samples[samples$vars == var, "sam"] == 0){
+   sim<-unique(winRegions[,var])
+  }else{
+    sim<-seq(min(winRegions[,var]), max(winRegions[,var]), length.out = samples[samples$vars==var,"sam"])
+  }
+  
+  vectors[[var]]<-sim
+  
+}
+
+# Make all combination for all values
+data_sim<-expand.grid(vectors)
+colnames(data_sim)<-xVarsVector
+
+# Calculate probabilities for each case
+data_sim <- cbind(data_sim, predict(mod, data_sim, type = "probs"))
+
+# Make plot
+data_plot <- melt(data_sim, id.vars = xVarsVector,value.name="Probability", variable.name = "Level")
+
+for (var in xVarsVector) {
+  if(!is.na(samples[samples$vars == var, "names"])){
+    data_plot[,var]<-factor(data_plot[,var], labels = strsplit(samples[samples$vars == var, "names"], ", " )[[1]]) 
+  }
+}
+```
+
+<!-- THIS PLOT IS LESS AUTOMATIZED -->
+
+```{r, echo=showcode, eval=runR, fig.cap="Probabiilty of having 0 to >3 inversions depending on multiple independent variables", fig.height=7}
+pacman::p_load("viridisLite", "ggplot2")
+
+main<-samples$vars[order(samples$sam, decreasing = T)][1]
+categorical<-samples$vars[which(samples$sam == 0)]
+continuousCategorical<-samples$vars[!(samples$vars %in% c(main, categorical) ) ]
+alphaVar<-continuousCategorical[1]
+
+categorical_col<-ifelse(length(categorical) == 0, ".", paste(categorical, collapse ="+"))
+continuousCategorical_col<-ifelse(length(continuousCategorical[-1]) == 0, ".", paste(continuousCategorical[-1], collapse ="+"))
+
+colors<-viridis(length(unique(data_plot$Level)), end=0.9)
+
+ggplot(data_plot) +geom_line(aes_string(x = main, y = "Probability", group = paste0("interaction(Level,", alphaVar,")"), color="Level", alpha  = alphaVar))+
+  facet_grid(as.formula(paste0(continuousCategorical_col," ~ ",categorical_col)),labeller = "label_both" )+
+  # scale_color_manual(values = c("#440154","#31688e","#35b779" , "#c8e020"))+
+  scale_color_manual(values = colors)+
+  ggtitle(paste0("Probability of inversion level (",yVar,") for multiple scenarios"))+
+  theme(legend.position = "top",legend.box="vertical")
+
+
+```

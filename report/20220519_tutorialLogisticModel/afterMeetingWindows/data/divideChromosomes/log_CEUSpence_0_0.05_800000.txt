@@ -1,0 +1,23 @@
+2022-06-13 13:14:11,766 - Starting divideChromosomes.py
+2022-06-13 13:14:11,766 - Parameters
+
+    recombination map       : data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed
+    band file               : data/cytoBand.txt
+    numer of windows        : 0 
+    crossover zone strength : 0.05
+    crossover zone replicas : 800000
+    output directory        : report/20220519_tutorialLogisticModel/afterMeetingWindows/data/divideChromosomes/
+    seed:                   : 888443753
+
+2022-06-13 13:14:11,766 - Loading data
+2022-06-13 13:14:12,084 - Calculating theoretical chromosome limits
+2022-06-13 13:14:12,090 - Calculating actual chromosome limits
+2022-06-13 13:14:26,422 - Skipping fixed window sectioning...
+2022-06-13 13:14:26,423 - Dividing chromosomes into crossover sections with 0.05 strength and 800000 replicas 
+2022-06-13 13:19:56,415 -     Files generated: 
+        report/20220519_tutorialLogisticModel/afterMeetingWindows/data/divideChromosomes/CEUSpence_COzones_0.05_800000/windows.txt
+        report/20220519_tutorialLogisticModel/afterMeetingWindows/data/divideChromosomes/CEUSpence_COzones_0.05_800000/extremes.txt
+        report/20220519_tutorialLogisticModel/afterMeetingWindows/data/divideChromosomes/CEUSpence_COzones_0.05_800000/densities.txt
+        report/20220519_tutorialLogisticModel/afterMeetingWindows/data/divideChromosomes/CEUSpence_COzones_0.05_800000/workspace.txt
+        report/20220519_tutorialLogisticModel/afterMeetingWindows/data/divideChromosomes/CEUSpence_COzones_0.05_800000/log.txt 
+2022-06-13 13:19:56,416 - Finished

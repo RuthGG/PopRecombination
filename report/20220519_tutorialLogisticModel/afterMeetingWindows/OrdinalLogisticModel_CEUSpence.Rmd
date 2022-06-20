@@ -1,0 +1,119 @@
+---
+title: "Detection of large scale inversion location patterns with ordinal logistic regression"
+author: "Ruth Gómez Graciani"
+output:
+  bookdown::pdf_document2: default
+header-includes:
+ \usepackage{float}
+ \floatplacement{figure}{H}
+ \floatplacement{table}{H}
+---
+
+\tableofcontents
+
+\newpage
+# Windows generation
+
+```{r child = '01PrepareTheData_CEUSpence.Rmd'}
+```
+
+\newpage
+
+
+# Data preparation
+
+```{r child = '02ExploreTheData_numCategories.Rmd'}
+```
+
+
+
+# Model fitting
+
+For all inversions, NH inversions and NAHR inversions, I have fitted an Ordinal Logistic Regression with `polr`, which returns a coefficient that represents the log(OddsRatio) and the corresponding Standard Error and t-value. For ease of interpretation, I have included in the table the Odds Ratio and the p-value corresponding to the t-value.
+
+The summary tables also include the p-value for the Brant test, that checks whether the proportional odds assumption is true for this dataset (H0 = the proportional odds assumption holds). All models fulfill this assumption, although for the NAHR these p-values are to be taken with caution because some ChrRegion-invCategory combinations did not exist. 
+
+The interpretation for the Odds Ratio is better understood with an example: given an independent variable x with an Odds Ratio of 1.25, for each increase in 1 measurement unit of variable x, a window is 1.25 times more likely to be in a higher inversion count category, given that the other variables remain constant. Since our variables are scaled, measurement units are standard deviations of each variable distribution. A significant p-value means that within the coefficient's confidence interval the values do not change sign, i.e. the variable is consistently increasing or decreasing the odds.
+
+In the general model (Table 5) the variable Length is the only significant one, with an Odds Ratio = 2.197 and p-value = 0.002. When only NH inversions are taken into account  (Table 6), both the significance and the Odds Ratio increase: OR = 2.955 and p-value = 0.0002. On the other hand, when only NAHR inversions are considered (Table 7), the Length effect is no longer relevant and the only significant variable is Repeat number, with OR = 1.74 and p-value = 0.01. This confirms previous findings that at large window scales, the number of inversions depends on the generation mechanism, so the amount of repeats will be a key determinant of the amount of NAHR inversions in a region, while NH inversions will be generated randomly anywhere in the genome. It also evidences that when studying all inversions together, the patterns will be a mix of both inversion types, thus the importance of studying them separately given their very distinct behaviors. 
+
+<!-- ## All inversions -->
+
+```{r, include=FALSE}
+# Inversion type
+yVar<-"invCategory"
+
+# Scaled/notScaled
+xVars<- "Length.Mb.Scaled + allRepCounts.Scaled + ChrRegion + WAvgRate.perMb.Scaled"
+
+# Formula
+myFormula<-paste0(yVar,"~", xVars)
+xVarsVector<-strsplit(xVars, " [+] ")[[1]]
+
+# Samples for prediction
+samples<-data.frame(vars=xVarsVector, sam=c(50,4,0,4), names=c(NA,"Low, Med-low, Med-high, High", "centromeric, arm, telomeric", "Low, Med-low, Med-high, High"), stringsAsFactors = F )
+
+# Pass to file
+save(yVar,xVars,myFormula,xVarsVector,samples , file= "data/analysisParams.RData")
+```
+
+
+```{r , child = '03invAnalysisShort.Rmd'}
+```
+
+
+
+<!-- ## NH inversions -->
+
+```{r, include=FALSE}
+# Inversion type
+yVar<-"NHCategory"
+
+# Scaled/notScaled
+xVars<- "Length.Mb.Scaled + allRepCounts.Scaled + ChrRegion + WAvgRate.perMb.Scaled"
+
+# Formula
+myFormula<-paste0(yVar,"~", xVars)
+xVarsVector<-strsplit(xVars, " [+] ")[[1]]
+
+# Samples for prediction
+samples<-data.frame(vars=xVarsVector, sam=c(50,4,0,4), names=c(NA,"Low, Med-low, Med-high, High", "centromeric, arm, telomeric", "Low, Med-low, Med-high, High"), stringsAsFactors = F )
+
+# Pass to file
+save(yVar,xVars,myFormula,xVarsVector,samples , file= "data/analysisParams.RData")
+```
+
+
+```{r child = '03invAnalysisShort.Rmd'}
+```
+
+
+
+
+<!-- ## NAHR inversions -->
+
+```{r, include=FALSE}
+# Inversion type
+yVar<-"NAHRCategory"
+
+# Scaled/notScaled
+xVars<- "Length.Mb.Scaled + allRepCounts.Scaled + ChrRegion + WAvgRate.perMb.Scaled"
+
+# Formula
+myFormula<-paste0(yVar,"~", xVars)
+xVarsVector<-strsplit(xVars, " [+] ")[[1]]
+
+# Samples for prediction
+samples<-data.frame(vars=xVarsVector, sam=c(50,4,0,4), names=c(NA,"Low, Med-low, Med-high, High", "centromeric, arm, telomeric", "Low, Med-low, Med-high, High"), stringsAsFactors = F )
+
+# Pass to file
+save(yVar,xVars,myFormula,xVarsVector,samples , file= "data/analysisParams.RData")
+```
+
+
+```{r child = '03invAnalysisShort.Rmd'}
+```
+
+# Possible improvements / To do list
+
+It would be nice to calculate power and goodness of fit for these models, especially the NAHR one, which is the one that needs more caution on interpretation. 

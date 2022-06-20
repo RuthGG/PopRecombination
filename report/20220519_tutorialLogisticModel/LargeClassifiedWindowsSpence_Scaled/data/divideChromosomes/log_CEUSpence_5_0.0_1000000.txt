@@ -1,0 +1,27 @@
+2022-06-08 12:47:58,930 - Starting divideChromosomes.py
+2022-06-08 12:47:58,930 - Parameters
+
+    recombination map       : data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed
+    band file               : data/cytoBand.txt
+    numer of windows        : 5 
+    crossover zone strength : 0.0
+    crossover zone replicas : 1000000
+    output directory        : report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data/divideChromosomes/
+    seed:                   : 1440287038
+
+2022-06-08 12:47:58,930 - Loading data
+2022-06-08 12:48:03,073 - Calculating theoretical chromosome limits
+2022-06-08 12:48:03,283 - Calculating actual chromosome limits
+2022-06-08 12:48:18,925 - Dividing chromosome arms into 5 sections 
+2022-06-08 12:48:18,988 -     Files generated: 
+        report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data/divideChromosomes/CEUSpence_fixedArms_5/windows.txt
+        report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data/divideChromosomes/CEUSpence_fixedArms_5/workspace.txt
+        report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data/divideChromosomes/CEUSpence_fixedArms_5/log.txt 
+2022-06-08 12:48:18,988 - Dividing chromosomes into crossover sections with 0.0 strength and 1000000 replicas 
+2022-06-08 12:55:22,147 -     Files generated: 
+        report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data/divideChromosomes/CEUSpence_COzones_0.0_1000000/windows.txt
+        report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data/divideChromosomes/CEUSpence_COzones_0.0_1000000/extremes.txt
+        report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data/divideChromosomes/CEUSpence_COzones_0.0_1000000/densities.txt
+        report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data/divideChromosomes/CEUSpence_COzones_0.0_1000000/workspace.txt
+        report/20220519_tutorialLogisticModel/LargeClassifiedWindowsSpence/data/divideChromosomes/CEUSpence_COzones_0.0_1000000/log.txt 
+2022-06-08 12:55:22,163 - Finished

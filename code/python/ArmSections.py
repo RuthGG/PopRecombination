@@ -38,9 +38,9 @@ args = parser.parse_args()
 # invFile = '../../data/InversionsAnnotation_131Inv_20211117.csv'
 # repFile = '../../data/genomicSuperDups.txt'
 # pmapFile = "../../data/Bherer_Refined_genetic_map_b37_procesed/BhererAllChroms.txt"
-# lmapFile = "../../data/SpenceSong_hg19_recMaps_processed/CEU_SRR.bed"
+# lmapFile = "../../data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed"
 # bandFile = '../../data/cytoBand.txt'
-# fragCount = 5
+# fragCount = 500
 # outDir = "../../tmp"
 # runName = "test"
 
@@ -248,6 +248,7 @@ for index, row in winRegions.iterrows():
     recL_part["weight"] = recL_part["winSize"]/ sum(recL_part["winSize"])
     winRegions.loc[index,"SpenceRegsWeightMean"] = sum(recL_part["weight"] * recL_part["Rate"])
 
+# %% 
 # Write result
 winRegions.to_csv( "{}/windowData.csv".format(outDir), index=False, sep = "\t")
 

@@ -1,0 +1,67 @@
+Checking model for variable: NHCenters
+#================================#
+#---------------------------------#
+All-in model
+#---------------------------------#
+
+Call:
+lm(formula = paste0(var, " ~   allRepCounts + WAvgRate +  Length.bp.  + maxRate"), 
+    data = windowData)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-0.8782 -0.3255 -0.1473  0.3778  3.4530 
+
+Coefficients:
+               Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  -1.169e-01  1.793e-01  -0.652    0.515    
+allRepCounts  4.245e-05  8.499e-05   0.499    0.618    
+WAvgRate      1.349e+04  7.064e+04   0.191    0.849    
+Length.bp.    3.535e-08  6.928e-09   5.102 7.79e-07 ***
+maxRate      -6.752e+01  9.314e+01  -0.725    0.469    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 0.6168 on 200 degrees of freedom
+Multiple R-squared:  0.1384,	Adjusted R-squared:  0.1211 
+F-statistic:  8.03 on 4 and 200 DF,  p-value: 5.048e-06
+
+#---------------------------------#
+Step fitting
+#---------------------------------#
+Stepwise Model Path 
+Analysis of Deviance Table
+
+Initial Model:
+NHCenters ~ allRepCounts + WAvgRate + Length.bp. + maxRate
+
+Final Model:
+NHCenters ~ Length.bp.
+
+
+            Step Df   Deviance Resid. Df Resid. Dev       AIC
+1                                    200   76.10025 -193.1465
+2     - WAvgRate  1 0.01388116       201   76.11414 -195.1091
+3 - allRepCounts  1 0.08612404       202   76.20026 -196.8772
+4      - maxRate  1 0.19564492       203   76.39590 -198.3516
+#---------------------------------#
+Final model
+#---------------------------------#
+
+Call:
+lm(formula = formula(step), data = windowData)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-0.8659 -0.4081 -0.1428  0.4065  3.4315 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept) -1.024e-01  9.589e-02  -1.068    0.287    
+Length.bp.   3.502e-08  6.222e-09   5.629 5.96e-08 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 0.6135 on 203 degrees of freedom
+Multiple R-squared:  0.135,	Adjusted R-squared:  0.1308 
+F-statistic: 31.69 on 1 and 203 DF,  p-value: 5.963e-08

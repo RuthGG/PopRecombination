@@ -1,0 +1,27 @@
+2022-06-07 17:51:59,053 - Starting divideChromosomes.py
+2022-06-07 17:51:59,054 - Parameters
+
+    recombination map       : data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed
+    band file               : data/cytoBand.txt
+    numer of windows        : 5 
+    crossover zone strength : 0.0
+    crossover zone replicas : 800000
+    output directory        : report/20220519_tutorialLogisticModel/LargeWindowsSpence/data/divideChromosomes/
+    seed:                   : 3310577457
+
+2022-06-07 17:51:59,054 - Loading data
+2022-06-07 17:51:59,368 - Calculating theoretical chromosome limits
+2022-06-07 17:51:59,374 - Calculating actual chromosome limits
+2022-06-07 17:52:14,249 - Dividing chromosome arms into 5 sections 
+2022-06-07 17:52:14,307 -     Files generated: 
+        report/20220519_tutorialLogisticModel/LargeWindowsSpence/data/divideChromosomes/CEUSpence_fixedArms_5/windows.txt
+        report/20220519_tutorialLogisticModel/LargeWindowsSpence/data/divideChromosomes/CEUSpence_fixedArms_5/workspace.txt
+        report/20220519_tutorialLogisticModel/LargeWindowsSpence/data/divideChromosomes/CEUSpence_fixedArms_5/log.txt 
+2022-06-07 17:52:14,307 - Dividing chromosomes into crossover sections with 0.0 strength and 800000 replicas 
+2022-06-07 17:57:34,510 -     Files generated: 
+        report/20220519_tutorialLogisticModel/LargeWindowsSpence/data/divideChromosomes/CEUSpence_COzones_0.0_800000/windows.txt
+        report/20220519_tutorialLogisticModel/LargeWindowsSpence/data/divideChromosomes/CEUSpence_COzones_0.0_800000/extremes.txt
+        report/20220519_tutorialLogisticModel/LargeWindowsSpence/data/divideChromosomes/CEUSpence_COzones_0.0_800000/densities.txt
+        report/20220519_tutorialLogisticModel/LargeWindowsSpence/data/divideChromosomes/CEUSpence_COzones_0.0_800000/workspace.txt
+        report/20220519_tutorialLogisticModel/LargeWindowsSpence/data/divideChromosomes/CEUSpence_COzones_0.0_800000/log.txt 
+2022-06-07 17:57:34,510 - Finished

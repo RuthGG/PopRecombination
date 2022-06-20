@@ -1,0 +1,14 @@
+2022-06-09 10:55:51,533 - Starting divideChromosomes.py
+2022-06-09 10:55:51,533 - Parameters
+
+    recombination map       : data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed
+    band file               : data/cytoBand.txt
+    numer of windows        : 0 
+    crossover zone strength : 0.0
+    crossover zone replicas : 800000
+    output directory        : report/20220519_tutorialLogisticModel/LargeClassifiedWindowsfemBherer/data/divideChromosomes/
+    seed:                   : 2319666038
+
+2022-06-09 10:55:51,533 - Loading data
+2022-06-09 10:55:51,752 - Calculating theoretical chromosome limits
+2022-06-09 10:55:51,758 - Calculating actual chromosome limits

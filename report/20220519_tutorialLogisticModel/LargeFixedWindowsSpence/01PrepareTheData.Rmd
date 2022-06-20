@@ -1,0 +1,148 @@
+<!-- # --- -->
+<!-- # title: "Ordinal logistic model on large windows data" - chapter 1 -->
+<!-- # author: "Ruth Gómez Graciani" -->
+<!-- # output: -->
+<!-- #   pdf_document: default -->
+<!-- # header-includes: -->
+<!-- #  \usepackage{float} -->
+<!-- #  \floatplacement{figure}{H} -->
+<!-- # --- -->
+
+```{r, include=FALSE}
+if (!require("pacman")) install.packages("pacman")
+# set conditions for code output
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, error=FALSE,fig.pos = "!H")
+showcode=FALSE #for include or echo - echo=showcode // include=showcode
+runbash=FALSE # for eval=runbash
+runR=TRUE #for eval=runR
+```
+
+
+# Prepare the data
+
+<!-- First, we obtain the density distribution, and local minima and maxima for the recombination map.  -->
+
+<!-- Bash run to make standard windows -->
+
+```{bash, include=showcode, eval=runbash}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+cd /home/rgomez/Documents/PHD_Repos/20211117_PopRecombination/
+
+OUTDIR="report/20220519_tutorialLogisticModel/LargeWindowsSpence/data"
+
+$ENVPY code/python/divideChromosomes.py \
+  -m data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed  \
+  -b data/cytoBand.txt -f 5 -s 0 -r 800000 -o $OUTDIR -d CEUSpence
+
+
+cd report/20220519_tutorialLogisticModel/LargeWindowsSpence/
+```
+
+<!-- Windows visualization -->
+
+```{r Base-workspace, eval=runR,echo=showcode, fig.cap="Crossover zones; centromeres in blue, workspace limits in orange." ,  fig.height=6}
+# Setup
+pacman::p_load(ggplot2)
+name <-"CEUSpence_fixedArms_5"
+divChroms <- paste0("data/divideChromosomes/",name,"/")
+
+  # PATHS
+  windowsFile <- paste0(divChroms,"/windows.txt")
+  # densityFile <- paste0(divChroms,"/densities.txt")
+  # extremesFile <- paste0(divChroms,"/extremes.txt")
+  centroFile <- paste0(divChroms,"/workspace.txt")
+  
+  # FILES
+  windows <- read.table(windowsFile, header = T, sep = "\t")
+  #Manual curation
+  windows<-windows[windows$chromID != "chr21p",]
+  
+    windows$Color <- "a"
+    windows[as.numeric(rownames(windows)) %% 2 == 1,"Color"]<-"b"
+  windows$Chromosome <- factor(windows$Chromosome, levels =  paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+    
+  
+  # density <- read.table(densityFile, header = T, sep = "\t")
+  # density$Chromosome <- factor(density$Chromosome, levels = paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  
+  # extremes <- read.table(extremesFile, header = T, sep = "\t")
+  # extremes$Chromosome <- factor(extremes$Chromosome, levels = paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  
+  centromeres <- read.table(centroFile, header = T, sep = "\t")
+  centromeres$Chromosome <- factor(centromeres$Chromosome, levels =  paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  centromeres<-centromeres[!centromeres$chromID %in% c("chr21p", "chr21cen"),]
+  armLimits <-centromeres[grep("cen", centromeres$chromID,invert = T),]
+  centromeres<-centromeres[grep("cen", centromeres$chromID),]
+  starts <-  armLimits[grep("p", armLimits$chromID), c("Start", "Chromosome")]
+  ends<- armLimits[grep("q", armLimits$chromID), c("End", "Chromosome")]
+  
+  # Remove chr p arm data when necessary
+  # d_rowlist<-c()
+  # c_rowlist<-c()
+  # for (c in unique(starts$Chromosome)) {
+    # cStart <-min(windows[windows$Chromosome ==c, "Start"])
+    # starts[starts$Chromosome == c, "Start"]<- cStart # chromosome start will be first minimum
+  #   windows[windows$Chromosome ==c & windows$Start < cStart,"Start" ]<-cStart #window start may be affected
+  #   d_rowlist<-c(d_rowlist,rownames(density[density$Chromosome ==c & density$pos < cStart,])) #some densities will disappear
+  #   c_rowlist<-c(c_rowlist,rownames(centromeres[centromeres$Chromosome ==c & centromeres$Start < cStart,])) # if starts with centromere will disappear
+  # 
+  # 
+  # }
+  # density<-density[!(rownames(density) %in% d_rowlist),]
+  # centromeres<-centromeres[!(rownames(centromeres) %in% c_rowlist),]
+
+
+  # PLOT
+  ggplot()+
+        geom_rect(data= centromeres,  aes(xmin = Start, xmax = End,  ymin = 0, ymax = Inf), fill = "blue4", alpha = 0.5)+
+     geom_rect(data=windows, aes(xmin = Start, xmax = End, fill = Color, ymin = 0, ymax = 1), alpha = 0.3)+
+     geom_vline(data=starts, aes(xintercept = Start), color = "orange")+geom_vline(data=ends, aes(xintercept = End), color = "orange")+
+        # geom_line(data=density,aes(x = pos, y = val))+
+        # geom_point(data=extremes, aes(x = pos, y = val, color = Type))+
+        facet_wrap("Chromosome", scales  = "free", ncol=4)+
+        scale_fill_manual(values=c("#737373", "#e1e5eb"), guide="none")+
+        # scale_color_manual(values = c("#bd2b43", "#2b63bd"), guide = "none")+
+         theme(axis.ticks.x = element_blank(),axis.text.x = element_blank(),axis.text.y = element_blank(), axis.ticks=element_blank())+
+        ylab("")+xlab("Position")+ggtitle(name)
+
+```
+
+\newpage
+
+Next, we define telomeric regions as the windows at the extremes of the chromosome. We will exclude centromeric regions because they have lower quality.  
+
+```{r Modified-workspace, eval=runR, echo=showcode,  fig.cap="Color-coded windows for telomeric, centromeric and arm categories.",  fig.height=6 }
+
+windows$Color<- "arm"
+windows[grep("p0|q4", windows$winID), "Color"]<-"telomeric"
+centromeres$winID<-"cen"
+centromeres$Color <- "centromeric"
+windows<-rbind(windows, centromeres)
+
+
+write.table(windows[windows$Color != "centromeric",], "data/windows.txt", quote = F, row.names = F, col.names = T, sep = "\t")
+
+  ggplot()+
+        # geom_rect(data= centromeres,  aes(xmin = Start, xmax = End,  ymin = 0, ymax = Inf), fill = "blue4", alpha = 0.5)+
+        geom_vline(data=starts, aes(xintercept = Start), color = "orange")+geom_vline(data=ends, aes(xintercept = End), color = "orange")+
+        geom_rect(data=windows, aes(xmin = Start, xmax = End, fill = Color, ymin = 0, ymax = 1), alpha = 0.3)+
+        # geom_line(data=density,aes(x = pos, y = val))+
+        # geom_point(data=extremes, aes(x = pos, y = val, color = Type))+
+        facet_wrap("Chromosome", scales = "free", ncol = 4)+
+        # scale_fill_manual(values=c("#737373", "#e1e5eb"), guide="none")+
+        scale_color_manual(values = c("#bd2b43", "#2b63bd"), guide = "none")+
+        scale_y_continuous(labels=function(x)x*1000000)+
+         theme(axis.ticks.x = element_blank(),axis.text.x = element_blank(),axis.text.y = element_text(size = 5), legend.position = "top")+
+        ylab("Rate (cM/Mb)")+xlab("Position")+ggtitle(name) 
+  
+
+```
+
+<!-- Fill window information -->
+
+```{bash, include=showcode, eval=runbash}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+cd "../../../"
+$ENVPY code/python/fillWindowMeasurements.py -m data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed -w report/20220519_tutorialLogisticModel/LargeFixedWindowsSpence/data/windows.txt  -o report/20220519_tutorialLogisticModel/LargeFixedWindowsSpence/data/ -d "chromRegions"
+cd report/20220519_tutorialLogisticModel/LargeFixedWindowsSpence/
+```

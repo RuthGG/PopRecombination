@@ -19,24 +19,158 @@ In addition, inversions generate aberrant chromosomes and unviable zygotes if a 
 
 In this notebook, I explore whether inversions are evenly distributed among chromosomes and which variables affect the generation and/or maintenance of inversions as polymorphisms in certain regions of the genome. 
 
-[[[[ ADD SUMMARY OF WHAT I WILL DO ]]]]
-
-```{r}
-library(ggplot2)
-library(ggbio)
-library(GenomicRanges)
-library(reshape2)
-library(patchwork)
-data(ideoCyto, package = "biovizBase")
+```{r, eval = F}
+if (!require("pacman")) install.packages("pacman")
+#
+# library(ggplot2)
+# library(ggbio)
+# library(GenomicRanges)
+# library(reshape2)
+# library(patchwork)
+# data(ideoCyto, package = "biovizBase")
+# library(performance)#
 ```
+
 
 # Large-scale patterns
 
 ## Workspace and windows definition 
 
-The term 'workspace' refers to the genomic regions suitable for analysis. To define it, we calculated the first and last coordinates from each chromosome arm to have estimations for all the recombination maps included in the analysis. We excluded the windows overlapping with the centromere, which are usually very large due to the lower data availability when estimating recombination maps, and thus we considered to be less reliable. 
+The term 'workspace' refers to the genomic regions suitable for analysis. To define it, we calculated the first and last coordinates from each chromosome arm to have estimations for the recombination map being analyzed. We excluded the windows overlapping with the centromere, which are usually very large due to the lower data availability when estimating recombination maps, and thus we considered them to be less reliable. 
 
 Once the workspace is defined, each arm is divided into an equal number of windows, generating window sizes proportional to arm size that allow us to have physical size as a variable. In addition, for each window we calculate inversion center point overlap, repeat center point overlap, and mean recombination rate (both simple and map window size weighted means).
+
+There are two types of windows: fixed size windows and crossover zones. Fixed size windows are calculated dividing each chromosome arm (centromere excluded) into n windows. Crossover zones are the spaces between two local minima in the crossover density. Since we only have recombination rate values, we resample the coordinates into what can be considered a simulation of crossovers, and then calculate crossover zones similarly to Bell et al. 2020. 
+
+```{bash}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+# ANALYSIS WIDOWS: 5 fixed windows, and crossover zones with 0 persistence and 40k simulations (sample size similar to Bell et al.2020)
+
+# Spence CEU map
+$ENVPY code/python/divideChromosomes.py -m data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed -b data/cytoBand.txt -f 5 -s 0.1 -r 800000 -o "analysis/$(date +'%Y%m%d')_LocationPatterns" -d CEUSpence
+# Bherer map (general)
+$ENVPY code/python/divideChromosomes.py -m data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed -b data/cytoBand.txt -f 5 -s 0.1 -r 800000 -o "analysis/$(date +'%Y%m%d')_LocationPatterns" -d avgBherer 
+# Bherer map (female)
+$ENVPY code/python/divideChromosomes.py -m data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed -b data/cytoBand.txt -f 5 -s 0.1 -r 800000 -o "analysis/$(date +'%Y%m%d')_LocationPatterns" -d femBherer
+
+# ------------ TEST
+
+$ENVPY code/python/divideChromosomes.py -m data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_1481711.bed -b data/cytoBand.txt -f 5 -s 0.1 -r 100000 -o "analysis/$(date +'%Y%m%d')_LocationPatterns" -d CEUSpence_part
+```
+
+```{bash valleypeaks}
+TODAY=$(date +'%Y%m%d')
+USE=20220513
+
+mkdir -p "analysis/$(date +'%Y%m%d')_LocationPatterns/divideChromosomes"
+
+
+cp -r "analysis/${USE}_LocationPatterns/divideChromosomes/CEUSpence_COzones_0.1_800000" "analysis/$(date +'%Y%m%d')_LocationPatterns/divideChromosomes/CEUSpence_VPzones_0.1_800000"
+
+cp -r "analysis/${USE}_LocationPatterns/divideChromosomes/avgBherer_COzones_0.1_800000" "analysis/$(date +'%Y%m%d')_LocationPatterns/divideChromosomes/avgBherer_VPzones_0.1_800000"
+
+cp -r "analysis/${USE}_LocationPatterns/divideChromosomes/femBherer_COzones_0.1_800000" "analysis/$(date +'%Y%m%d')_LocationPatterns/divideChromosomes/femBherer_VPzones_0.1_800000"
+
+```
+
+```{r valleypeaks}
+date <- 20220516
+
+
+for (name in c("avgBherer", "femBherer", "CEUSpence")) {
+  
+  windows<-data.frame()
+  extremes<-read.table(paste0("analysis/",date,"_LocationPatterns/divideChromosomes/",name,"_VPzones_0.1_800000/extremes.txt"), sep = "\t", header = T)
+  
+  extremes<-extremes[order(extremes$Chromosome, extremes$pos),]
+  
+  
+  for (chr in unique(extremes$Chromosome)) {
+    part<-extremes[extremes$Chromosome == chr,]
+    part$pos2<- with(part, c(pos[2:length(pos)],pos[length(pos)])  )
+    part$center<-with(part, pos+(pos2-pos)/2)
+    coords<-with(part, c(pos[1], center[2:(length(center)-2)], pos[length(pos)]))
+    starts<-coords[1:length(coords)-1]
+    ends<-coords[2:length(coords)]
+    windows<- rbind(windows, data.frame(Start = starts, End = ends, Chromosome = chr))
+  }
+  
+  write.table(windows, paste0("analysis/",date,"_LocationPatterns/divideChromosomes/",name,"_VPzones_0.1_800000/windows.txt"), sep = "\t", col.names = T, row.names = F,  quote = F )
+
+}
+```
+
+## Window information
+For each window, we measure multiple variables related to repeats, crossover rate, inversions...
+
+```{bash}
+
+ENVPY="/home/rgomez/anaconda3/bin/python"
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+
+for DIR in $(ls -d analysis/${USE}_LocationPatterns/divideChromosomes/*/); do
+
+RECMAP=$(grep "recombination map" ${DIR}/log.txt | cut -d ":" -f2)
+NAME=$(basename ${DIR})
+
+$ENVPY code/python/fillWindowMeasurements.py -m ${RECMAP} -w ${DIR}/windows.txt  -o "analysis/$(date +'%Y%m%d')_LocationPatterns" -d $NAME
+
+done
+
+```
+
+## Variable exploration and model exploration
+```{bash statAnatalysis}
+
+TODAY=$(date +'%Y%m%d')
+USE=20220513
+
+mkdir -p "analysis/$(date +'%Y%m%d')_LocationPatterns/statAnalysis"
+echo "Starting proces..." > "analysis/$(date +'%Y%m%d')_LocationPatterns/statAnalysis/logfile.txt"
+
+for DIR in $(ls -d analysis/${USE}_LocationPatterns/divideChromosomes/*/); do
+
+echo $DIR >> "analysis/$(date +'%Y%m%d')_LocationPatterns/statAnalysis/logfile.txt"
+NAME=$(basename ${DIR})
+
+Rscript code/rscript/statAnalysis.R ${DIR} analysis/${USE}_LocationPatterns/fillWindowMeasurements/${NAME}  "analysis/${TODAY}_LocationPatterns" $NAME \
+>> "analysis/${TODAY}_LocationPatterns/statAnalysis/logfile.txt" 2>&1
+done
+
+```
+
+```{bash statAnatalysis_density}
+
+TODAY=$(date +'%Y%m%d')
+USE=20220513
+
+mkdir -p "analysis/$(date +'%Y%m%d')_LocationPatterns/statAnalysis_density"
+echo "Starting proces..." > "analysis/$(date +'%Y%m%d')_LocationPatterns/statAnalysis_density/logfile.txt"
+
+for DIR in $(ls -d analysis/${USE}_LocationPatterns/divideChromosomes/*/); do
+
+echo $DIR >> "analysis/$(date +'%Y%m%d')_LocationPatterns/statAnalysis_density/logfile.txt"
+NAME=$(basename ${DIR})
+
+Rscript code/rscript/statAnalysis_density.R ${DIR} analysis/${USE}_LocationPatterns/fillWindowMeasurements/${NAME}  "analysis/${TODAY}_LocationPatterns" $NAME \
+>> "analysis/${TODAY}_LocationPatterns/statAnalysis_density/logfile.txt" 2>&1
+done
+
+```
+
+
+
+
+
+
+# -------------------------- OLD ----------------------------#
+
+```
+python code/python/divideChromosomes.py -m data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed -b data/cytoBand.txt -f 5 -s 0 -r 5000 -o "analysis/$(date +'%Y%m%d')_LocationPatterns"
+```
+
+
 
 ```
 python code/python/ArmSections.py -i data/InversionsAnnotation_131Inv_20211117.csv -r data/genomicSuperDups.txt -p data/Bherer_Refined_genetic_map_b37_procesed/BhererAllChroms.txt -l data/SpenceSong_hg19_recMaps_processed/CEU_SRR.bed -b data/cytoBand.txt -f 5 -o "analysis/$(date +'%Y%m%d')_LocationPatterns"
@@ -55,7 +189,7 @@ windowData <- read.table(paste0("analysis/",dateAnalysis,"_LocationPatterns/",da
                          sep = "\t", header= T)
 ```
 
-```{r Show effective workspace}
+```{r Show effective workspace, cache = TRUE}
 mergedLimits <- merge(theoryLimits, dataLimits, by = "chromID", suffixes = c("_theory", "_data") , all = TRUE)
 mergedLimits <- mergedLimits[complete.cases(mergedLimits),]
 
@@ -86,7 +220,7 @@ autoplot(ideoCyto$hg19, layout = "karyogram", cytobands = TRUE)+
 
 ## Exploration of variables
 
-```{r VariableVisualization, fig.width=11, fig.heigth=6, dpi = 300}
+```{r VariableVisualization, fig.width=11, fig.heigth=6, dpi = 300, cache = TRUE}
 
 # windowData
 windowData$Chromosome <- factor(windowData$Chromosome, levels = paste(rep("chr", 22), as.character(c(1:22)), sep = ""))
@@ -130,11 +264,22 @@ for (group in unique(windowDataMelted$dataGroup)) {
 
 
 
-```{r VariableVisualizationPlot, fig.height=11, fig.width=20}
+```{r VariableVisualizationPlot, fig.height=11, fig.width=20, cache = TRUE}
 
 wrap_plots(plot_list)
 ```
 
+```{r VariableVisualizationPlot, fig.height=11, fig.width=20, cache = TRUE}
+c<-table(windowData$NHCenters, windowData$NAHRCenters )
+names(dimnames(c))<-c("NHCenters", "NAHRCenters")
+c
+
+windowData$chromSection <- ifelse(grepl("p0|q4",windowData$winID), "Telomere", "Arm")
+
+c<-table(windowData$invCenters , windowData$chromSection)
+names(dimnames(c))<-c("invCenters", "chromSection")
+c
+```
 
 ```{r examples}
 #-----------------------------#
@@ -188,31 +333,130 @@ wrap_plots(plot_list)
 
 ```
 
+```{r correlations, fig.height=10, fig.width=10, cache = TRUE}
+
+library("corrplot")
+corrTable<-windowData[,c("NHCenters", "NAHRCenters", "Length.bp.", "allRepCounts", "BhererRegsWeightMean") ]
+corrTable$log10allRepCounts<-log10(corrTable$allRepCounts)
+
+rownames(corrTable) <- paste0(windowData$winID)
+
+# QUICK EASY ALTERNATIVE
+# toPlotCor = cor(as.matrix(corrTable), method = "pearson")
+# testRes = cor.mtest(corrTable, conf.level = 0.95)
+# 
+# corrplot(toPlotCor, p.mat = testRes$p, sig.level = c(0.001, 0.01, 0.05), pch.cex = 0.9, insig = 'label_sig', type = "lower", method = "square", col = COL2('PRGn'), diag = FALSE, tl.col = "black")
+
+library("PerformanceAnalytics")
+chart.Correlation(corrTable, histogram=TRUE, pch=19, method = "pearson")
+mtext("Pearson correlation", line = 1)
+chart.Correlation(corrTable, histogram=TRUE, pch=19, method = "spearman")
+mtext("Spearman correlation", line = 1)
+```
 
 ## Multiple linear regression
 
 ```{r tutorialModel}
 # We will use the variables inversions (all), repeats (all), weighted mean, window length
-windowData$chromSection <- ifelse(grepl("p0|q4",windowData$winID), "Telomere", "Arm")
 
-lmData<-windowData[,c("NAHRCenters", "allRepCounts", "BhererRegsWeightMean", "Length.bp.")]
-rownames(lmData)<-windowData$winID
-head(lmData)
+##### Relationship between independent variables
+# ggplot(lmData)+aes(x = Length.bp., y = NAHRCenters, size = BhererRegsWeightMean, color = allRepCounts)+geom_point() + scale_color_gradient()
 
-# Visualze the relationship between these four
-ggplot(lmData)+aes(x = Length.bp., y = NAHRCenters, size = BhererRegsWeightMean, color = allRepCounts)+geom_point() + scale_color_gradient()
+# Make model with RepCounts
+model<-lm(log10(allRepCounts) ~   BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
 
-# Make model
-model<-lm(log10(allRepCounts) ~   BhererRegsWeightMean +  Length.bp. +  BhererRegsWeightMean:Length.bp. + as.factor(chromSection), data = windowData)
+summary(model)
+```
+
+```{r tutorialModel}
+# Make model with logRepCounts
+model<-lm(log10(allRepCounts) ~   BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
 summary(model)
 
-# Test model correctness
-# install.packages("performance")
-# install.packages("see")
-library(performance)
+check_model(model)
+```
+
+```{r tutorialModel}
+##### Add Inversions
+
+model<-lm(invCenters ~  allRepCounts + BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
+summary(model)
 
 check_model(model)
+```
 
+```{r tutorialModel}
+model<-lm(invCenters ~   log(allRepCounts) + BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
+summary(model)
+
+check_model(model)
+```
+
+```{r tutorialModel}
+##### Separate inversions - NH
+model<-lm(NHCenters ~  allRepCounts + BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
+summary(model)
+
+check_model(model)
+```
+
+```{r tutorialModel}
+model<-lm(NHCenters ~   log(allRepCounts) + BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
+summary(model)
+
+check_model(model)
+```
+
+```{r tutorialModel}
+model<-lm(NAHRCenters ~  allRepCounts + BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
+summary(model)
+
+check_model(model)
+```
+
+```{r tutorialModel}
+model<-lm(NAHRCenters ~   log(allRepCounts) + BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
+summary(model)
+
+check_model(model)
+```
+```{r stepAICinv}
+
+fit<-lm(invCenters ~   allRepCounts+ log(allRepCounts) + BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
+
+step <- stepAIC(fit, direction="both") # from MASS library
+step$anova # display results 
+
+model <- lm(invCenters ~ allRepCounts + Length.bp., data = windowData)
+summary(model)
+check_model(model)
+```
+
+```{r stepAICNH}
+
+fit<-lm(NHCenters ~   allRepCounts+ log(allRepCounts) + BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
+
+step <- stepAIC(fit, direction="both") # from MASS library
+step$anova # display results 
+
+model <- lm(NHCenters ~ Length.bp. + as.factor(chromSection), data = windowData)
+summary(model)
+check_model(model)
+```
+
+```{r stepAICNAHR}
+
+fit<-lm(NAHRCenters ~   allRepCounts+ log(allRepCounts) + BhererRegsWeightMean +  Length.bp.  + as.factor(chromSection), data = windowData)
+
+step <- stepAIC(fit, direction="both") # from MASS library
+step$anova # display results 
+
+model <- lm(NAHRCenters ~ allRepCounts + BhererRegsWeightMean + as.factor(chromSection), data = windowData)
+summary(model)
+check_model(model)
+```
+
+```{r tutorialModel}
 ##### ORDINAL LINEAR REGRESSION - https://www.r-bloggers.com/2019/06/how-to-perform-ordinal-logistic-regression-in-r/
 # Ordinal logistic models consider the probability of an event and all the events that are below the focal event in the ordered hierarchy.
 # Independent variables can be measured on nominal, ordinal or continuous measurement scale, but must not be collinear.
@@ -220,16 +464,7 @@ mData<-windowData[,c( "invCenters",  "allRepCounts", "Length.bp.", "BhererRegsWe
 rownames(mData)<-windowData$winID
 mData$invCenters <- factor(mData$invCenters, ordered = TRUE)
 mData$chromSection<-factor(mData$chromSection,  ordered = TRUE, labels = c("0", "1"))
-
-# Summaries / Multicollinearity
-
-summary(mData)
-table(mData$invCenters, mData$chromSection)
-
-library(corrplot)
-toPlotCorx = cor(as.matrix(mData))
-testResx = cor.mtest(mData, conf.level = 0.95)
-corrplot(toPlotCorx,  p.mat = testResx$p, sig.level = c(0.001, 0.01, 0.05), tl.col = "black", pch.cex = 0.9, insig = 'label_sig', type = "lower", method = "square", col = COL2('PRGn'), diag = FALSE)
+mData[,c("Length.bp.", "BhererRegsWeightMean", "allRepCounts")]<-sapply(mData[,c("Length.bp.", "BhererRegsWeightMean", "allRepCounts")], as.numeric)
 
 #Dividing data into training and test set
 #Random sampling 
@@ -241,101 +476,682 @@ datatrain = mData[index,]
 datatest = mData[-index,]
 
 #Build ordinal logistic regression model
-model= polr(invCenters ~ allRepCounts + Length.bp. , data = datatrain, Hess = TRUE)
-summary(model)   
+library("MASS")
+model= polr(invCenters ~ scale(allRepCounts) + scale(Length.bp.) + scale(BhererRegsWeightMean)+chromSection , data = datatrain, Hess = TRUE)
+
+summary(model)
 
 ```
+
+## Location along chromosome arm
+
+```{r  Location along chromosome arm}
+
+# Refresh data
+dateAnalysis <- "20220217"
+dateArmSections <-"20220217"
+
+windowData <- read.table(paste0("analysis/",dateAnalysis,"_LocationPatterns/",dateArmSections,"_ArmSections/windowData.csv"), sep = "\t", header= T)
+
+library("stringr")
+windowData$chrpos<-str_sub(windowData$winID, -2 , -1)
+
+optBtable<-aggregate(invCenters ~ chrpos, data=windowData, sum)
+optBtable$opts<-table(windowData$chrpos)
+optB<-ggplot(optBtable,aes(x=chrpos, y = invCenters/opts))+geom_bar( stat="identity")
+  
+# -----
+
+# Take chromosome positions
+chrSizes<-read.table("data/chrSizes.txt", head = T)
+# Take inv positions
+inv<-read.table("data/InversionsAnnotation_131Inv_20211117.csv", sep = "\t", header = TRUE, skip = 1, stringsAsFactors = F)
+inv<-inv[,c("INV", "Origin", "Chr", "BP1_1.1", "BP2_2.1" )]
+inv$Origin<- factor(inv$Origin, labels = c("NAHR", "NAHR", "NH", "NH"))
+# Calculate positional percentage
+inv$center<-inv$BP1_1.1 + (inv$BP2_2.1 - inv$BP1_1.1 +1)-1
+inv<-merge(inv, chrSizes, by.x = "Chr", by.y ="Chromosome")
+inv$percentagePos<-inv$center / inv$Totallength.bp.
+
+optA<-ggplot(inv)+geom_histogram(aes(x = percentagePos), bins = 10)+facet_wrap(Origin  ~ .)
+
+# --------
+# Take arm positions
+chrcen<-read.table("data/cytoBand.txt")
+colnames(chrcen)<-c("Chr", "Start", "End", "band", "gstain")
+chrcen$arm<-str_sub(chrcen$band, 1,1)
+chrcen$arm<-paste0(chrcen$Chr, chrcen$arm)
+
+chrcen<-merge(aggregate( Start ~ arm, chrcen, min ), aggregate( End ~ arm, chrcen, max ))
+
+# Determine centromere point
+chrcen$chr<-str_replace_all(chrcen$arm, c("p" = "", "q"= ""))
+
+centromerepoint<-aggregate(End ~ chr, chrcen,min)
+
+inv<-merge(centromerepoint, inv, by.y = "Chr", by.x = "chr")
+
+inv$arm<-ifelse(inv$center <= inv$End,"p", "q")
+
+inv$percentageArm<-ifelse(inv$arm == "p"  , inv$center / inv$End , 1-((inv$center-inv$End+1) / (inv$Totallength.bp. - inv$End +1)) )
+
+summary(inv$percentageArm)
+# 0 = telomere, 1 = centromere
+
+optC<-ggplot(inv)+geom_histogram(aes(x = percentageArm), bins = 10)+facet_wrap(Origin ~ .)
+
+# ---- plots
+optA
+optB
+optC
+```
+
+
+
+
+
+## Large-scale patterns: functional sections
+
+> Repetir el análsis de brazos cromosómicos (el del modelo) dividiendo cada brazo en 3 zonas (telomérica, central y centromérica) según un threshold de tasa de recombinación. Además, hacerlo con el mapa de Spence (histórico) en lugar del de Bherer (pedigrís), ya que utilizaremos el de Spence como el “estándar”. 
+
+## Workspace and windows definition
+
+1 - Check if the patterns from Avery can be observed here
+  
+```
+python code/python/CrossoverZones.py -i data/InversionsAnnotation_131Inv_20211117.csv -r data/genomicSuperDups.txt -p data/Bherer_Refined_genetic_map_b37_procesed/BhererAllChroms.txt -l data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed -b data/cytoBand.txt -s 0.1 -o "analysis/$(date +'%Y%m%d')_LocationPatterns"
+```
+
+```{r}
+library(ggplot2)
+library(reshape2)
+
+date1 <- "20220522"
+date2 <- "20220522"
+windowData <- read.table(paste0("analysis/",date1,"_LocationPatterns/",date2,"_CrossoverZones/COzone_windowData.csv"), header = T)
+
+densities <-  read.table(paste0("analysis/",date1,"_LocationPatterns/",date2,"_CrossoverZones/densities.csv"), header = T)
+extremes <-read.table(paste0("analysis/",date1,"_LocationPatterns/",date2,"_CrossoverZones/extremes.csv"), header = T)
+histogram <- read.table(paste0("analysis/",date1,"_LocationPatterns/",date2,"_CrossoverZones/histogram.csv"), header = T)
+histogram<-melt( histogram, id.vars = c("Start", "End","chromID", "winID", "Chromosome", "Length.bp."))
+colnames(histogram)[colnames(histogram) %in% c("variable", "value")] <- c("Stat", "StatValue")
+
+windowData$StatValue<-ifelse(windowData$Stat == "BhererRegsWeightMean", windowData$BhererRegsWeightMean, windowData$SpenceRegsWeightMean)
+limits<-read.table(paste0("analysis/",date1,"_LocationPatterns/",date2,"_CrossoverZones/actualChromosomeLimits.csv"), header = T)
+centromeres<-limits[grep("cen" , limits$chromID),]
+centromeres$Chromosome<-sub("cen", "", centromeres$chromID)
+
+ggplot()+
+  geom_rect(data = histogram,aes( xmin = Start, xmax = End,  ymin = 0, ymax = StatValue ))+
+  geom_line(data = densities,aes(x = pos, y = valScaled), size = 0.3, alpha = 0.8)+
+  geom_point(data = extremes, aes(x = pos, y =valScaled, color = Type), size = 0.3)+
+  geom_rect(data=windowData, aes(xmin = Start, xmax = End, fill = Color, ymin = 0, ymax = StatValue ), alpha = 0.4 , show.legend = F)+
+  facet_wrap(Stat ~ Chromosome , scales = "free")+
+  ggtitle("Crossover zones in recombination maps")
+
+
+```
+```{r}
+ggplot()+
+  geom_rect(data = histogram[histogram$Chromosome == "chr1",],aes( xmin = Start, xmax = End,  ymin = 0, ymax = StatValue ))+
+  geom_line(data = densities[densities$Chromosome == "chr1",],aes(x = pos, y = valScaled), size = 0.5, alpha = 0.8)+
+  geom_point(data = extremes[extremes$Chromosome == "chr1",], aes(x = pos, y =valScaled, color = Type), size = 0.5)+
+  geom_rect(data=windowData[windowData$Chromosome == "chr1",], aes(xmin = Start, xmax = End, fill = Color, ymin = 0, ymax = StatValue ), alpha = 0.4 , show.legend = F)+
+  facet_wrap(Stat ~ Chromosome , scales = "free")+
+  ggtitle("Crossover zones in recombination maps")
+
+```
+```{r}
+ggplot()+
+  geom_rect(data = histogram[histogram$Chromosome == "chr4",],aes( xmin = Start, xmax = End,  ymin = 0, ymax = StatValue ))+
+  geom_line(data = densities[densities$Chromosome == "chr4",],aes(x = pos, y = valScaled), size = 0.5, alpha = 0.8)+
+  geom_point(data = extremes[extremes$Chromosome == "chr4",], aes(x = pos, y =valScaled, color = Type), size = 0.5)+
+  geom_rect(data=windowData[windowData$Chromosome == "chr4",], aes(xmin = Start, xmax = End, fill = Color, ymin = 0, ymax = StatValue ), alpha = 0.4 , show.legend = F)+
+  facet_wrap(Stat ~ Chromosome , scales = "free")+
+  ggtitle("Crossover zones in recombination maps")
+
+
+sc4<-read.table("data/SpenceSong_hg19_recMaps/YRI/YRI_recombination_map_hapmap_format_hg19_chr_4.txt", header = T)
+scall<-read.table("data/SpenceSong_hg19_recMaps_processed/YRI_recombination_map_hg19_allChr.bed", header = F)
+scall<- scall[scall$V1 == "chr4",]
+
+bcall <- read.table("data/Bherer_Refined_genetic_map_b37_procesed/BhererAllChroms.txt", header = F) 
+bcall<- bcall[bcall$V1 == "chr4",]
+
+scall$V4 / sc4$Rate.cM.Mb.
+
+plotable1<-sc4[sc4$Position.bp. > 37859896 & sc4$Position.bp. < 61675279,]
+plotable2<-histogram[histogram$Stat == "SpenceRegsWeightMean" & histogram$Chromosome == "chr4" & histogram$Start > 37859896 & histogram$End < 61675279,]
+plotable2$StatValue <- plotable2$StatValue / 1e-08
+ggplot()+
+  geom_rect(data =plotable2  , aes(xmin = Start, xmax = End, ymin = 0, ymax = StatValue))+
+  geom_point(data = plotable1 ,aes(x = Position.bp., y = Rate.cM.Mb.), alpha = 0.1)
+
+```
+
+```{r}
+library(ggplot2)
+windowData<-read.table("analysis/20220404_LocationPatterns/20220404_ArmSections/windowData.csv", sep  ="\t", header = T)
+
+chromnames<-c(paste0("chr", c(1:22)))
+
+levels(windowData$Chromosome) <- chromnames
+
+ggplot(windowData)+
+  geom_rect(aes(xmin = Start, xmax = End, ymin= 0, ymax = SpenceRegsWeightMean ))+
+  facet_wrap(Chromosome ~ ., scales = "free")
+
+ggplot(windowData, aes(x = Start + (End-Start+1)/2, y = cumsum(SpenceRegsWeightMean)))+
+  geom_line()+
+  facet_wrap(Chromosome ~ ., scales = "free")
+
+windowData$center<-with(windowData , Start + (End-Start+1)/2)
+
+windowData[,c("cumulative", "previous", "previous_coord")]<-NA
+
+for(c in chromnames){
+  t <- windowData[windowData$Chromosome == c,]
+  t$cumulative<-cumsum(t$SpenceRegsWeightMean)
+  t$previous <- c(0,t$cumulative[1:length(t$cumulative)-1])
+  t$previous_coord<- c(0,t$center[1:length(t$center)-1])
+    
+  windowData[windowData$Chromosome == c,]<-t
+}
+
+windowData$rise<-windowData$cumulative-windowData$previous
+windowData$run<-windowData$center-windowData$previous_coord
+windowData$slope<-windowData$rise / windowData$run
+
+maxSlope<-aggregate(slope ~ Chromosome ,windowData, max)
+colnames(maxSlope)<-c("Chromosome", "maxslope")
+windowData<-merge(windowData, maxSlope, all = T)
+windowData$normSlope<-windowData$slope / windowData$maxslope
+
+library(viridisLite)
+library(viridis)
+ggplot(windowData, aes(x = center, y = SpenceRegsWeightMean, color = slope))+
+  geom_line(size = 1)+
+  scale_color_viridis()+
+  facet_wrap(Chromosome ~ ., scales = "free")
+
+
+ggplot(windowData, aes(x = center, y = cumulative, color = normSlope))+
+  geom_bar(stat="identity")+
+  scale_color_viridis()+
+  facet_wrap(Chromosome ~ ., scales = "free")
+
+maxcumulative<-aggregate(cumulative ~ Chromosome ,windowData, max)
+colnames(maxcumulative)<-c("Chromosome", "maxcumsum")
+windowData<-merge(windowData, maxcumulative, all = T)
+windowData$normcumsum<-windowData$cumulative / windowData$maxcumsum
+
+ggplot(windowData, aes(x = center, y = normcumsum, color = normSlope))+
+  geom_bar(stat="identity")+
+  scale_color_viridis()+
+  facet_wrap(Chromosome ~ ., scales = "free")
+
+ggplot(windowData)+geom_point(aes(x = normcumsum, y = normSlope))
+
+#----- byarm
+
+windowData <- read.table("analysis/20220404_LocationPatterns/20220404_ArmSections/windowData.csv", sep  ="\t", header = T)
+
+chromnames<-c(paste0("chr", c(1:22)))
+levels(windowData$Chromosome) <- chromnames
+
+windowData$center<-with(windowData , Start + (End-Start+1)/2)
+windowData[ grep("q", windowData$chromID) , "center"]<- windowData[ grep("q", windowData$chromID) , "center"]*-1
+
+windowData[,c("cumulative", "previous", "previous_coord")]<-NA
+windowData<-windowData[order(windowData$Chromosome, windowData$center),]
+
+for(c in unique(windowData$chromID)){
+  t <- windowData[windowData$chromID == c,]
+  
+  t$cumulative<-cumsum(t$SpenceRegsWeightMean)
+  t$previous <- c(0,t$cumulative[1:length(t$cumulative)-1])
+  t$previous_coord<- c(0,t$center[1:length(t$center)-1])
+
+  windowData[windowData$chromID == c,]<-t
+}
+
+windowData$rise<-windowData$cumulative-windowData$previous
+windowData$run<-windowData$center-windowData$previous_coord
+windowData$slope<-windowData$rise / windowData$run
+
+maxSlope<-aggregate(slope ~ chromID ,windowData, max)
+colnames(maxSlope)<-c("chromID", "maxslope")
+windowData<-merge(windowData, maxSlope, all = T)
+windowData$normSlope<-windowData$slope / windowData$maxslope
+
+
+maxcumulative<-aggregate(cumulative ~ chromID ,windowData, max)
+colnames(maxcumulative)<-c("chromID", "maxcumsum")
+windowData<-merge(windowData, maxcumulative, all = T)
+windowData$normcumsum<-windowData$cumulative / windowData$maxcumsum
+
+
+ggplot(windowData)+
+  geom_rect(aes(xmin = Start, xmax =End, ymin = 0, ymax = normcumsum, fill = normSlope ))+
+  # geom_line(aes(x = center, y = normcumsum, color = normSlope))+
+  scale_fill_viridis()+
+  facet_wrap(chromID ~ ., scales = "free")
+
+ggplot(windowData)+geom_point(aes(x = normSlope, y = normcumsum))
+
+
+#LOCAL MINIMA AND MAXIMA from https://gist.github.com/jamiefolson/5831746
+which.peaks <- function(x,partial=TRUE,decreasing=FALSE){
+  if (decreasing){
+    if (partial){
+      which(diff(c(TRUE,diff(x)<=0,FALSE))>0)
+    }else {
+      which(diff(diff(x)<=0)>0)
+    }    
+  }else {
+    if (partial){
+      which(diff(c(TRUE,diff(x)>=0,FALSE))<0)
+    }else {
+      which(diff(diff(x)>=0)<0)
+    }
+    
+  }
+}
+x<- test
+test<-c(1,2,3,45,5,59,1,2,2,2,23,2,1,1,1,12,1)
+which.peaks(test, decreasing = TRUE)
+
+
+minima<-data.frame()
+for(c in unique(windowData$chromID)) {
+  t <- windowData[windowData$chromID == c,]
+  minima<- rbind(minima, t[which.peaks(t$SpenceRegsWeightMean, decreasing = FALSE ),c("center","chromID")]) #find valleys
+}
+minima$center_pos<-sqrt(minima$center ^ 2)
+
+ggplot(windowData)+
+  geom_rect(aes(xmin = Start, xmax =End, ymin = 0, ymax = SpenceRegsWeightMean, fill = normSlope ))+
+  # geom_vline(data = minima, aes(xintercept = center_pos))+
+  scale_fill_viridis()+
+  facet_wrap(chromID ~ ., scales = "free")
+
+
+# LOCAL MINIMA AND MAXIMA FROM AVERY
+find_peaks <- function (x, m = 3){
+  # from stack OVerflow! https://stats.stackexchange.com/questions/22974/how-to-find-local-peaks-valleys-in-a-series-of-data
+  # available on github:https://github.com/stas-g/findPeaks
+  # smaller m = more peaks; larger m = fewer peaks
+  shape <- diff(sign(diff(x, na.pad = FALSE)))
+  pks <- sapply(which(shape < 0), FUN = function(i){
+    z <- i - m + 1
+    z <- ifelse(z > 0, z, 1)
+    w <- i + m + 1
+    w <- ifelse(w < length(x), w, length(x))
+    if(all(x[c(z : i, (i + 2) : w)] <= x[i + 1])) return(i + 1) else return(numeric(0))
+  })
+  pks <- unlist(pks)
+  pks
+}
+
+idplotzones<-function(sampinfo,exampco,mychr,cenlens,posopt){
+  # Finds chromosome "zones" (between local minima of CO density) for one chromosome (mychr); plots where these are. By combining all samples in sampinfo's COs
+  # sampinfo, data.table containing the names of samples to read in (by substituting into exampco). Column names infname, usename
+  # exampco, Example filestem for crossover files (suffixed with _<1-22, one per chromosome>.txt) with crossovers including location information (must include columns chr, pos.L, and pos.R). Where the sample name goes, should have _sampname_ exactly, including underscores.
+  # mychr, chromosome to process. Number only!
+  # cenlens, locations of centromeres and length of chromosomes. Columns: chr (format chr#), lcen, rcen, len
+  # posopt, 'med', 'left', or 'right' -  COs are processed as having one location (for density), should midpoint or left/right boundary be used?
+  
+  # get in data
+  allcos<-do.call(rbind,lapply(sampinfo$infname,function(x) fread.all(gsub("_sampname_",x,exampco),mychr,gsub("_sampname_",x,exampbcs),posopt)))
+  d.allcos<-density(t)
+  t<-c(1,1,1,2,3,4,6,5,7,8,9,1,2,4,6,6,3,1,1,1,5,5,6,7,4,3,4,3,2,1,9,9,9,9,9,9,9,9,9)
+  # identify and format zones
+  minima<-find_peaks(-d.allcos$y)
+  myzones<-data.table(name=paste("chr",1,".",1:(length(minima)+1),sep=""),chr=paste("chr",1,sep=""),start=c(1,d.allcos$x[minima]+1),
+                      end=c(d.allcos$x[minima],16))
+  
+  # plot (density with CEN with zones overlaid)
+  plot(d.allcos,xlab=paste("Position on chromosome",1),main=paste("Chromosome",1,"zones"),ylim=c(0,max(d.allcos$y)))
+  # for(i in 1:nrow(myzones)){ # sometimes a forloop is just easier
+  #   if(i%%2>0){ # plot odds one color
+  #     rect(myzones[i,start],0,myzones[i,end],max(d.allcos$y),col=rgb(255,0,0,100,max=255),border=NA)
+  #   }else{ # plot evens another color
+  #     rect(myzones[i,start],0,myzones[i,end],max(d.allcos$y),col=rgb(0,0,255,100,max=255),border=NA) #density=5,angle=45
+  #   }
+  # }
+  # rect(cenlens[chr==paste("chr",mychr,sep=""),lcen],0,cenlens[chr==paste("chr",mychr,sep=""),rcen],max(d.allcos$y),col=rgb(190,190,190,150,max=255),border=NA)
+  # rect(cenlens[chr==paste("chr",mychr,sep=""),lcen],0,cenlens[chr==paste("chr",mychr,sep=""),rcen],max(d.allcos$y),density=8,angle=45)
+  # lines(d.allcos,lwd=2)
+  # plotplain<-recordPlot() # Record to return
+  # invisible(dev.off())
+  # 
+  ggplot()+geom_line(aes(x = d.allcos$x, y = d.allcos$y))+geom_rect(data=myzones,aes(xmin = start, xmax = end, ymin = 0, ymax = max(d.allcos$y), alpha = 0.1 ))
+
+```
+
+## Exploration of variables
+## Multiple linear regression
+## Location along chromosome arm
+
+
 # Fine-scale patterns
 
 ## Description of variables
 
+```{r finescaleSetup}
+
+# Setup
+today <- 20220517
+gatfiledir<-paste0("analysis/",today,"_LocationPatterns/GATfiles/" )
+
+# Frequency threshold
+freq <- 0.2
+
+# Directory
+dir.create(gatfiledir)
+```
+
 ### Segments
+
+```{r makeSegments}
+
+# Add libraries
+pacman::p_load(vcfR, ggplot2)
+
+# Setup 
+dir.create(paste0(gatfiledir,"/Segments"))
+
+# Read  VCF info
+vcf<-read.vcfR("data/InversionGenotypes_processed/allgenotypes.vcf")
+
+vcfInfo<-vcfR2tidy(vcf, info_only = TRUE)$fix
+
+# Recalculate frquency for del vars
+delinvs<-sub("Del", "",grep("Del", vcfInfo$ID, value =  T) )
+delinvs<-delinvs[delinvs != "HsInv0030"]
+
+for (var in delinvs) {
+  
+vartable<-vcfInfo[vcfInfo$ID == var, c("AC_EUR","AN_EUR")]
+deltable<-vcfInfo[vcfInfo$ID == paste0(var, "Del"), c("AC_EUR","AN_EUR")]
+
+AN_total<-(as.numeric(vartable$AN_EUR) - as.numeric(vartable$AC_EUR)) + as.numeric(vartable$AC_EUR) + as.numeric(deltable$AC_EUR)
+
+vcfInfo[vcfInfo$ID == var, "AF_EUR"]<-as.character(as.numeric(vartable$AC_EUR)/AN_total)
+}
+
+vcfInfo$AF_EUR<-as.numeric(vcfInfo$AF_EUR)
+
+# SELECT A FREQUENCY IN THE SETUP
+# Comparison of selectefd frequency with distribution
+
+ggplot(vcfInfo, aes(x = AF_EUR))+geom_histogram()+
+  geom_vline(xintercept = summary(vcfInfo$AF_EUR)[3], color = "green")+
+  geom_vline(xintercept=summary(vcfInfo$AF_EUR)[4], color = "blue")+
+  geom_vline(xintercept = freq)
+
+# Chromosome format
+vcfInfo$CHROM<-paste0("chr",vcfInfo$CHROM)
+
+# Classification by high-low frequency
+lowfreq<-vcfInfo[vcfInfo$AF_EUR < freq,c("CHROM", "POS", "END", "ID")]
+hifreq<-vcfInfo[vcfInfo$AF_EUR >= freq,c("CHROM", "POS", "END", "ID")]
+
+write.table(lowfreq,paste0(gatfiledir,"/Segments/LFinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(hifreq, paste0(gatfiledir,"/Segments/HFinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(hifreq[hifreq$ID != "HsInv0501",], paste0(gatfiledir,"/Segments/HFno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# Classification by type
+NH<-vcfInfo[ vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")]
+NAHR<-vcfInfo[ vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")]
+
+write.table(NH,paste0(gatfiledir,"/Segments/NHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR, paste0(gatfiledir,"/Segments/NAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR[NAHR$ID != "HsInv0501" ,], paste0(gatfiledir,"/Segments/NAHRno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# Classification by freq AND type
+LFNH<-vcfInfo[vcfInfo$AF_EUR < freq & vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")]
+LFNAHR<-vcfInfo[vcfInfo$AF_EUR < freq & vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")]
+HFNH<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")]
+HFNAHR<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")]
+HFNAHRno<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NAHR" & vcfInfo$ID != "HsInv0501",c("CHROM", "POS", "END", "ID")]
+
+write.table(LFNH, paste0(gatfiledir,"/Segments/LFNHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(LFNAHR, paste0(gatfiledir,"/Segments/LFNAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(HFNH, paste0(gatfiledir,"/Segments/HFNHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(HFNAHR, paste0(gatfiledir,"/Segments/HFNAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(HFNAHRno, paste0(gatfiledir,"/Segments/HFNAHRno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# All invs
+ALL<-vcfInfo[,c("CHROM", "POS", "END", "ID")]
+ALLno<-vcfInfo[vcfInfo$ID != "HsInv0501",c("CHROM", "POS", "END", "ID")]
+
+write.table(ALL, paste0(gatfiledir,"/Segments/invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(ALLno, paste0(gatfiledir,"/Segments/no501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+```
+
 
 ### Annotations
 
+```{bash makeAnnotarions}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+# ANALYSIS WIDOWS: 5 fixed windows, and crossover zones with 0 persistence and 40k simulations (sample size similar to Bell et al.2020)
+
+# Spence CEU map
+$ENVPY code/python/recMapAnnotation.py -l data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/$(date +'%Y%m%d')_LocationPatterns/ -d "CEUSpence"
+
+# Bherer average
+$ENVPY code/python/recMapAnnotation.py -l data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed  -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/$(date +'%Y%m%d')_LocationPatterns/ -d "avgBherer"
+
+# Bherer female
+$ENVPY code/python/recMapAnnotation.py -l data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/$(date +'%Y%m%d')_LocationPatterns/ -d "femBherer"
+
+```
+
 ### Isochores
 
-To make a repeats isochore, I should be able to differentiate between "high" and "low" repeat regions. 
+```{bash makeIsochores}
+ENVPY="/home/rgomez/anaconda3/bin/python"
 
-1. Make smaller windows
-```
-python code/python/ArmSections.py -i data/InversionsAnnotation_131Inv_20211117.csv -r data/genomicSuperDups.txt -p data/Bherer_Refined_genetic_map_b37_procesed/BhererAllChroms.txt -l data/SpenceSong_hg19_recMaps_processed/CEU_SRR.bed -b data/cytoBand.txt -f 100 -o "analysis/$(date +'%Y%m%d')_LocationPatterns2_smallWins"
+$ENVPY code/python/makeIsochores.py -f data/genomicSuperDups_coords.bed -t 0.1  -o "analysis/$(date +'%Y%m%d')_LocationPatterns" -d genomicSuperDups
+
+
+
 ```
 
-2. Look at the distribution of smaller windows
+### Workspace
+
+```{bash makeWorkspace}
+TODAY=$(date +'%Y%m%d')
+USE=20220513
+
+mkdir -p "analysis/$(date +'%Y%m%d')_LocationPatterns/GATfiles/Workspace/"
+
+grep -v "cen" "analysis/${USE}_LocationPatterns/divideChromosomes/CEUSpence_COzones_0.1_800000/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/$(date +'%Y%m%d')_LocationPatterns/GATfiles/Workspace/workspace_CEUSpence.bed"
+
+grep -v "cen" "analysis/${USE}_LocationPatterns/divideChromosomes/avgBherer_COzones_0.1_800000/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/$(date +'%Y%m%d')_LocationPatterns/GATfiles/Workspace/workspace_avgBherer.bed"
+
+grep -v "cen" "analysis/${USE}_LocationPatterns/divideChromosomes/femBherer_COzones_0.1_800000/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/$(date +'%Y%m%d')_LocationPatterns/GATfiles/Workspace/workspace_femBherer.bed"
+
+
+```
+
+
+## GAT run
+
+For generation methods
+
+```{bash}
+
+
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults
+CONDITIONS="CEUSpence avgBherer femBherer"
+
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+
+for SEGMENT in $(ls $FILESDIR/Segments/*); do
+  SEGNAME=$(echo $SEGMENT | rev | cut -d'/' -f 1 | rev | sed "s/\.bed//g")
+  for NAME in $CONDITIONS; do
+    /home/rgomez/anaconda3/bin/gat-run.py --segments=$SEGMENT --annotations=$FILESDIR/Annotations/annotations_${NAME}.bed --output-counts-pattern=${OUTDIR}/counts/${SEGNAME}_${NAME}_%s.tsv.gz --isochores=$FILESDIR/Isochores/genomicSuperDups_COzones_0.1/windows.txt --workspace=$FILESDIR/Workspace/workspace_${NAME}.bed --num-samples=100 --log=$OUTDIR/log/${SEGNAME}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGNAME}_${NAME}.tsv
+
+  done
+done
+
+
+```
+
+## GAT results
+
+```{bash}
+
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+CONDITIONS="CEUSpence avgBherer femBherer"
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+
+```{r}
+pacman::p_load(reshape2, ggplot2, gridExtra)
+
+date<-"20220517"
+conditions <-c("avgBherer", "femBherer", "CEUSpence")
+figscale <- 3
+
+for (condition in conditions){
+  gatResultMerged <- read.table(paste0("analysis/",date,"_LocationPatterns/GATresults/",condition,".tsv"), sep = "\t", header = T)
+  
+  # To add stars
+  gatResultMerged$pstars<-ifelse(gatResultMerged$pvalue <= 0.05, ifelse(gatResultMerged$pvalue <= 0.01, ifelse(gatResultMerged$pvalue<= 0.001, "***", "**"), "*" ),"")
+  gatResultMerged$qstars<-ifelse(gatResultMerged$qvalue <= 0.05, ifelse(gatResultMerged$qvalue <= 0.01, ifelse(gatResultMerged$qvalue<= 0.001, "***", "**"), "*" ),"")
+  
+  gatResultMerged$starpos<-ifelse(gatResultMerged$observed< gatResultMerged$CI95high,gatResultMerged$CI95high,gatResultMerged$observed )
+  
+  gatResultMerged<-merge(gatResultMerged,aggregate(starpos~ annotation, gatResultMerged, "max")  , by = "annotation", all.x = TRUE, suffixes = c(".simple", ".aggregated"))
+  
+  plot1<-ggplot(gatResultMerged, aes(x = track, y = l2fold))+ 
+          geom_bar( stat="identity")+
+          geom_text(aes(x = track, y = max(l2fold), label = pstars), color ="blue")+
+          geom_text(aes(x = track, y = max(l2fold)+1, label = qstars), color = "red")+
+          facet_wrap(annotation  ~ . )+
+          scale_colour_manual(name="Significance",values=c("pvalue", "qvalue"), palette = c("blue", "red"))+
+          ylab("log2( Fold change )")+
+          xlab("Segment tracks")+
+       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+  
+  plot2<- ggplot(gatResultMerged)+
+    geom_pointrange(aes(x = track, y = expected, ymin=CI95low, ymax = CI95high))+
+    geom_point(aes(x = track, y = observed) , shape = 4, size = 3)+
+            geom_text(aes(x = track, y = starpos.aggregated*1.1, label = pstars), color ="blue")+
+          geom_text(aes(x = track, y =  starpos.aggregated*1.2, label = qstars), color = "red")+
+    facet_wrap(annotation  ~ ., scales = "free")+
+     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ylab("Annotations overlappifng with segments\n(Nucleotide counts)")+
+          xlab("Segment tracks")+
+          ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+
+      ggsave(paste0("analysis/",date,"_LocationPatterns/GATresults/",condition,".png"),  grid.arrange(plot1, plot2), width=2480, height=3508, units = "px" , scale = 1.5)
+}
+```
+
+# Analysis: are invesions in regions with lower recombination?
+
+```
+python  code/python/invRecValues.py -i data/InversionsAnnotation_131Inv_20211117.csv -l data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed -o "analysis/20220302_LocationPatterns/"
+```
+
+
+```{r}
+
+invRates<-read.table("analysis/20220302_LocationPatterns/20220311_invrecValues/inversionRates.csv", header = T)
+chrRates<-read.table("analysis/20220302_LocationPatterns/20220311_invrecValues/chromRates.csv", header = T)
+
+ggplot(chrRates, aes(x = as.factor(Chr))) +
+  geom_boxplot(aes( 
+      lower = mean - std, 
+      upper = mean + std, 
+      middle = mean, 
+      ymin = mean - 3*std, 
+      ymax = mean + 3*std),
+    stat = "identity")+
+  geom_jitter(data = invRates, aes(x = Chr, y = inside_WMR, color = OriginFixed), alpha = 0.7, width = 0.25)+
+  geom_text(data = invRates[invRates$inside_WMR > 2e-07,],aes(x = Chr, y = inside_WMR, color = OriginFixed, label = INV), hjust = -0.3 )+
+  scale_y_log10()
+```
+
+
 ```{r}
 library(ggplot2)
-dateAnalysis <- "20220217"
-# dateArmSections <-"20220301"
-dateArmSections <-"20220217"
-# windowData <- read.table(paste0("analysis/",dateAnalysis,"_LocationPatterns2_smallWins/",dateArmSections,"_ArmSections/windowData.csv"), 
-#                          sep = "\t", header= T)
-windowData <- read.table(paste0("analysis/",dateAnalysis,"_LocationPatterns/",dateArmSections,"_ArmSections/windowData.csv"), 
-                         sep = "\t", header= T)
+invRates<-read.table("analysis/20220302_LocationPatterns/20220314_invrecValuespvalues/inversionRates.csv", header = T)
 
-windowData$Chromosome <- factor(windowData$Chromosome, levels = paste(rep("chr", 22), as.character(c(1:22)), sep = ""))
-windowData$repDensity<- windowData$allRepCounts / windowData$Length.bp.
+ggplot(invRates, aes(x = variable, y = pvalue ))+geom_boxplot()+geom_jitter(width = 0.25, alpha = 0.2)
 
-# Distribution of variable
-summary(windowData$repDensity)
-ggplot(windowData, aes(x = repDensity))+geom_histogram()
-# It seems that "no repeats" could be the low repeat category...
 
-# Mark the threshold (we are searching for one that is more or less continuous and does not divide chromosomes into many chunks)
-# Distribution along chromosomes
-# ggplot(windowData[windowData$Chromosome == "chr9",])+
-ggplot(windowData)+
-  geom_rect(aes(xmin = Start,xmax = End, ymin = 0, ymax = repDensity))+
-  facet_wrap(Chromosome  ~., scales = "free")
-# I cannot see much, actually... 
-
-# Maybe see if there is a difference between inversion type in window and repeat count?
-
-# Range of NH inversions
-NHsumm <- summary(windowData[windowData$NHCenters > 0,"repDensity"])
-NAHRsumm <- summary(windowData[windowData$NAHRCenters > 0,"repDensity"])
-rbind(NHsumm, NAHRsumm)
-
-onlyInvs<-windowData[windowData$invCenters >0,]
-onlyInvs$category<-ifelse(onlyInvs$NAHRCenters > 0, ifelse(onlyInvs$NHCenters > 0, "Mixt", "NAHR"), ifelse(onlyInvs$NHCenters > 0, "NH", "Error") )
-
-ggplot(onlyInvs)+geom_boxplot(aes(x = category,y = log10(repDensity)))
-ggplot(onlyInvs)+geom_boxplot(aes(x = category,y = repDensity))
-
-ggplot(onlyInvs, aes(x = category, y = repDensity))+
-# ggplot(onlyInvs, aes(x = category, y = log10(repDensity)))+
+ggplot(invRates, aes(x = OriginFixed, y = pvalue ))+
     # Half violin
       ggdist::stat_halfeye(adjust = .5, width = .6, .width = 0, justification = -.2, point_colour = NA) +
     # Boxplot 
       geom_boxplot(width = .1, outlier.shape = NA) +
     # Points
-      # gghalves::geom_half_point_panel(side = "l", range_scale = .6,  alpha = .5, aes(color = Chromosome))+
-      # scale_color_manual(values = c(rep("#3c7ae7",11),rep("#89b23e",11) ))+
-  gghalves::geom_half_point_panel(side = "l", range_scale = 2,  alpha = .5, aes(color = factor(NAHRCenters)))+
+      gghalves::geom_half_point_panel(side = "l", range_scale = .6,  alpha = .5)+
     # Adjust coordinates
-      coord_flip()+
+      # coord_flip()+
       # coord_flip( xlim = c(1.3, NA))+
     # Adjust labels
-      # theme(axis.title.y = element_blank(), legend.position = "none")+
+      theme(axis.title.y = element_blank(), legend.position = "none")+
+    # Make grid
+      facet_grid(.~variable )+
     # Title
-      ggtitle("RepeatDensity")
+      ggtitle("P-value for recrates in inversions")
 
-# Worried about unequal representations...
-# Podria ser que la correlación es casualidad? por falta de muestra? que JUSTAMENET las unicas 2 veces en las que tengo >1, estan hacia el extremo de la distribución?
-NAHRCs<- summary(factor(windowData$NAHRCenters))
-NAHRCs["3"] <- 0
-NAHRCs["4"] <- 0
+library(ggpubr)
 
-NHCs<- summary(factor(windowData$NHCenters))
+ggscatter(invRates[invRates$variable == "inside_WMR",], x = "size", y = "pvalue",
+   color = "OriginFixed", palette = "jco", facet.by = "OriginFixed",scales = "free_x",
+   add = "reg.line", conf.int = TRUE)+
+  stat_cor(aes(color = OriginFixed), label.y = 110, method = "spearman")
+  
+invRates$logsizes = log10(invRates$size)
+ggscatter(invRates[invRates$variable == "left_2invSize_WMR",], x = "logsizes", y = "pvalue",
+   color = "OriginFixed", palette = "jco", facet.by = "OriginFixed",scales = "free_x",
+   add = "reg.line", conf.int = TRUE)+
+  stat_cor(aes(color = OriginFixed), label.y = 110, method = "pearson")
+  
+#------------------------------------ with rankings
 
-rbind(NAHRCs, NHCs)
+invRates<-read.table("analysis/20220302_LocationPatterns/20220317_invrecValuesrankings/inversionRates.csv", header = T)
 
+ggplot(invRates, aes(x = OriginFixed, y = pvalue ))+
+    # Half violin
+      ggdist::stat_halfeye(adjust = .5, width = .6, .width = 0, justification = -.2, point_colour = NA) +
+    # Boxplot 
+      geom_boxplot(width = .1, outlier.shape = NA) +
+    # Points
+      gghalves::geom_half_point_panel(side = "l", range_scale = .6,  alpha = .5)+
+    # Adjust coordinates
+      # coord_flip()+
+      # coord_flip( xlim = c(1.3, NA))+
+    # Adjust labels
+      theme(axis.title.y = element_blank(), legend.position = "none")+
+    # Make grid
+      facet_grid(.~variable )+
+    # Title
+      ggtitle("Ranking for recrates in inversions")
 ```
-### Workspace
-
-## GAT run
-
-## GAT results
 
 # References
 

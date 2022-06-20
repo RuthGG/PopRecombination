@@ -1,0 +1,270 @@
+<!-- 
+---
+title: "Detection of large scale inversion location patterns with ordinal logistic regression"
+author: "Ruth Gómez Graciani"
+output:
+  bookdown::pdf_document2:
+    toc: false
+    latex_engine: xelatex
+header-includes:
+  \usepackage{float}
+  \floatplacement{figure}{H}
+---
+-->
+
+```{r, include=FALSE}
+if (!require("pacman")) install.packages("pacman")
+# set conditions for code output
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, error=FALSE,fig.pos = "!H")
+showcode=FALSE #for include or echo - echo=showcode // include=showcode
+runbash=FALSE # for eval=runbash
+runR=TRUE #for eval=runR
+```
+
+
+First, we obtain the density distribution, and local minima and maxima for the CEU Spence recombination map (Figure \@ref(fig:Base-workspace)).
+
+<!-- Bash run to make standard windows -->
+
+```{bash, include=showcode, eval=runbash}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+cd /home/rgomez/Documents/PHD_Repos/20211117_PopRecombination/
+NAME="afterMeetingWindows"
+OUTDIR="report/20220519_tutorialLogisticModel/${NAME}/data"
+
+$ENVPY code/python/divideChromosomes.py \
+  -m data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed \
+  -b data/cytoBand.txt -f 0 -s 0.03 -r 1000000 -o $OUTDIR -d CEUSpence 
+
+cd report/20220519_tutorialLogisticModel/${NAME}   
+```
+
+<!-- Windows visualization -->
+
+```{r Base-workspace, eval=runR,echo=showcode, fig.cap="Black line is crossover density, blue and red points are local minima ans maxima respectively, centromeres in blue, chromosome limits in orange. Each chromosome has its own size and recombination scales. Telocentric chromosomes do not include p arm and centromere." ,  fig.height=6}
+# Setup
+pacman::p_load(ggplot2)
+name <-"CEUSpence_COzones_0.03_1000000"
+divChroms <- paste0("data/divideChromosomes/",name,"/")
+
+  # PATHS
+  windowsFile <- paste0(divChroms,"/windows.txt")
+  densityFile <- paste0(divChroms,"/densities.txt")
+  extremesFile <- paste0(divChroms,"/extremes.txt")
+  centroFile <- paste0(divChroms,"/workspace.txt")
+  
+  # FILES
+  windows <- read.table(windowsFile, header = T, sep = "\t")
+    windows$ChrRegion <- "a"
+    windows[as.numeric(rownames(windows)) %% 2 == 1,"ChrRegion"]<-"b"
+  windows$Chromosome <- factor(windows$Chromosome, levels =  paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+    
+  density <- read.table(densityFile, header = T, sep = "\t")
+  density$Chromosome <- factor(density$Chromosome, levels = paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  
+  extremes <- read.table(extremesFile, header = T, sep = "\t")
+  extremes$Chromosome <- factor(extremes$Chromosome, levels = paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  
+  centromeres <- read.table(centroFile, header = T, sep = "\t")
+  centromeres$Chromosome <- factor(centromeres$Chromosome, levels =  paste(rep("chr", 23), as.character(c(c(1:22),"X")), sep = ""))
+  armLimits <-centromeres[grep("cen", centromeres$chromID,invert = T),]
+  centromeres<-centromeres[grep("cen", centromeres$chromID),]
+  starts <-  armLimits[grep("p", armLimits$chromID), c("Start", "Chromosome")]
+  ends<- armLimits[grep("q", armLimits$chromID), c("End", "Chromosome")]
+  
+    d_rowlist<-c()
+  c_rowlist<-c()
+  for (c in unique(starts$Chromosome)) {
+    cStart <-min(extremes[extremes$Chromosome ==c, "pos"])
+    starts<- starts[ !(starts$Chromosome == c & starts$Start < cStart), ] # chromosome start will be first minimum
+    windows[windows$Chromosome ==c & windows$Start < cStart,"Start" ]<-cStart #window start may be affected
+    d_rowlist<-c(d_rowlist,rownames(density[density$Chromosome ==c & density$pos < cStart,])) #some densities will disappear
+    c_rowlist<-c(c_rowlist,rownames(centromeres[centromeres$Chromosome ==c & centromeres$Start < cStart,])) # if starts with centromere will disappear
+
+
+  }
+  density<-density[!(rownames(density) %in% d_rowlist),]
+  centromeres<-centromeres[!(rownames(centromeres) %in% c_rowlist),]
+  
+  # PLOT
+  ggplot()+
+        geom_rect(data= centromeres,  aes(xmin = Start, xmax = End,  ymin = 0, ymax = Inf), fill = "blue4", alpha = 0.5)+
+        geom_vline(data=starts, aes(xintercept = Start), color = "orange")+geom_vline(data=ends, aes(xintercept = End), color = "orange")+
+        # geom_rect(data=windows, aes(xmin = Start, xmax = End, fill = ChrRegion, ymin = 0, ymax = Inf), alpha = 0.3)+
+        geom_line(data=density,aes(x = pos, y = val))+
+        geom_point(data=extremes, aes(x = pos, y = val, color = Type))+
+        facet_wrap("Chromosome", scales  = "free", ncol=4)+
+        scale_fill_manual(values=c("#737373", "#e1e5eb"), guide="none")+
+        scale_color_manual(values = c("#bd2b43", "#2b63bd"), guide = "none")+
+        scale_y_continuous(labels=function(x)x*1000000)+
+         theme(axis.ticks.x = element_blank(),axis.text.x = element_blank(),axis.text.y = element_text(size = 5))+
+        ylab("Rate (cM/Mb)")+xlab("")+ggtitle(name) 
+
+```
+
+\newpage
+
+Next, we calculate telomeric and centromeric regions and divide the genome into windows accordingly (Figure \@ref(fig:Modified-workspace)). Telomeric regions are calculated from the extremes towards the centromere, starting at a chromosome limit and ending at the center point between the first local maximum and the next local minimum inwards. Centromeric regions are calculated from the centromere limits towards the extremes, starting at the centromere limit and ending at the center point between de limit and the next local maximum outwards. Centromeres are discarded because they tend to contain less reliable recombination estimates. The remaining spaces between telomeric and centromeric regions are divided into 2 windows and marked as arm regions. This last step is necessary, as arm regions are significantly larger than centromeric or telomeric regions if considered as a whole, which means that the levels of noise between the different chromosome regions would be different and could impact the result. In addition, this eliminates all the size outliers from the general distribution without actually deleting data (Figure \@ref(fig:SizeOutliers)).
+
+```{r Modified-workspace, eval=runR, echo=showcode,  fig.cap="ChrRegion-coded windows for telomeric, centromeric and arm categories. Black line is crossover density, blue and red points are local minima ans maxima respectively, chromosome limits in orange. Each chromosome has its own size and recombination scales. Telocentric chromosomes do not include p arm and centromere.",  fig.height=6 }
+windows <- data.frame()
+
+for (chrom in unique(extremes$Chromosome)) {
+  
+  # Sort extrema
+  extremes_c<- extremes[which(extremes$Chromosome == chrom) ,]
+  extremes_c<-extremes_c[order(extremes_c$pos),]
+  
+  # Chromosome extremes
+  teloExtremes<-extremes_c$pos[c(1,nrow(extremes_c))]
+  
+  # Telomeres threshold option A (midpoint between Max and Min)
+  teloMidsA<-c((extremes_c$pos[2]+extremes_c$pos[3])/2, (extremes_c$pos[nrow(extremes_c)-1]+extremes_c$pos[nrow(extremes_c)-2])/2)
+  telomeric<-data.frame(pos=c(teloExtremes, teloMidsA), Chromosome = chrom)
+  telomeric<-telomeric[order(telomeric$pos),]
+  
+  # Centromeres
+  centromeric <- centromeres[centromeres$Chromosome == chrom,]
+  if (nrow(centromeric) != 0){
+    leftMax<-max(extremes_c[which(extremes_c$pos <= centromeric$Start & extremes_c$Type == "Maxima"), "pos"])
+    rightMax<-min(extremes_c[which(extremes_c$pos >= centromeric$End & extremes_c$Type == "Maxima"), "pos"])
+    
+    centromeric$Start<- (centromeric$Start + leftMax)/2
+    centromeric$End<-(centromeric$End + rightMax)/2
+  }
+  
+  # Overlaps
+  if (nrow(centromeric) != 0){
+    #Average centromeres
+    teloend<- telomeric$pos[2]
+    telomeric$pos[2]<-ifelse(teloend>=centromeric$Start,  centromeric$Start , teloend)
+    telostart<-telomeric$pos[3]
+    telomeric$pos[3]<-ifelse(telostart<=centromeric$End, centromeric$End, telostart )
+  }
+  
+  # Delete first telomere if necessary
+  if (nrow(centromeric) == 0){
+    telomeric<-telomeric[c(1,3,4),]
+  }
+
+  #Positions
+  positions<-unique(c(telomeric$pos, centromeric$Start, centromeric$End))
+  positions<-positions[order(positions)]
+  
+  chromwins<-data.frame(Start = positions[1:length(positions)-1], End = positions[2:length(positions)], Chromosome = chrom)
+  chromwins$ChrRegion<- "arm"
+  if (nrow(centromeric) != 0){
+    chromwins[chromwins$Start %in% telomeric[c(1,3), "pos"],"ChrRegion"]<-"telomeric"
+    chromwins[chromwins$Start == centromeric$Start,"ChrRegion"]<-"centromeric"
+    
+    # Divide centromeric in two
+    cenBis<-chromwins[chromwins$ChrRegion == "centromeric",]
+
+    chromwins[chromwins$ChrRegion == "centromeric","End"] <- centromeres[centromeres$Chromosome == chrom,"Start"]
+    cenBis$Start <- centromeres[centromeres$Chromosome == chrom,"End"]
+
+    chromwins<-rbind(chromwins, cenBis)
+
+  }else{
+    chromwins[chromwins$Start %in% telomeric[c(2), "pos"],"ChrRegion"]<-"telomeric"
+  }
+  
+
+  windows <- rbind(windows,chromwins)
+}
+
+
+# write.table(windows, "data/windows.txt", quote = F, row.names = F, col.names = T, sep = "\t")
+
+
+
+  ggplot()+
+        # geom_rect(data= centromeres,  aes(xmin = Start, xmax = End,  ymin = 0, ymax = Inf), fill = "blue4", alpha = 0.5)+
+        geom_vline(data=starts, aes(xintercept = Start), color = "orange")+geom_vline(data=ends, aes(xintercept = End), color = "orange")+
+        geom_rect(data=windows, aes(xmin = Start, xmax = End, fill = ChrRegion, ymin = 0, ymax = Inf), alpha = 0.3)+
+        geom_line(data=density,aes(x = pos, y = val))+
+        geom_point(data=extremes, aes(x = pos, y = val, color = Type))+
+        facet_wrap("Chromosome", scales = "free", ncol = 4)+
+        # scale_fill_manual(values=c("#737373", "#e1e5eb"), guide="none")+
+        scale_color_manual(values = c("#bd2b43", "#2b63bd"), guide = "none")+
+        scale_y_continuous(labels=function(x)x*1000000)+
+         theme(axis.ticks.x = element_blank(),axis.text.x = element_blank(),axis.text.y = element_text(size = 5), legend.position = "top")+
+        ylab("Rate (cM/Mb)")+xlab("")+ggtitle(paste0(name, " with chromosome regions")) 
+  
+
+```
+
+
+
+```{r SizeOutliers, eval=runR,echo=showcode, fig.cap="Raincloud plot for size distribution of windows depending on the treatment of arm regions. When arm regions are divided into 2 windows, the shape of the arm size distribution remains the same while the average is not significantly different from centromeric and telomeric regions. All outliers are removed from the general distribution without actually losing data." ,  fig.height=6}
+
+
+pacman::p_load(ggdist, ggplot2, gghalves, reshape2, patchwork, gridExtra)
+  
+
+before<-ggplot(windows, aes(y = "Sizes",  (End-Start)/1000000 ))+
+      # Half violin
+      ggdist::stat_halfeye(adjust = .5, width = .6, .width = 0, justification = -.2, point_colour = NA) +
+      # Boxplot 
+      geom_boxplot(width = .1, outlier.shape = NA) +
+      # Points
+      gghalves::geom_half_point_panel(side = "l", range_scale = .6,  alpha = .5, aes(color = ChrRegion))+
+      # scale_color_manual(values = c(rep("#3c7ae7",11),rep("#89b23e",11) ))+
+      # Adjust coordinates
+      # coord_flip()+
+      # coord_flip( xlim = c(1.3, NA))+
+      # Adjust labels
+      theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank(),  legend.position = "none")+
+        xlab("Window size in Mb")+
+
+      facet_grid(ChrRegion~., margins=TRUE)+
+      # Title
+      ggtitle("Arm regions as 1 window")
+
+# So what happend if I divide each "arm" window in 2
+windows_telocen<-windows[windows$ChrRegion != "arm",]
+windows_arm<-windows[windows$ChrRegion == "arm",]
+
+windows_arm$half<-(windows_arm$End+windows_arm$Start)/2
+windows_arm_alpha<-windows_arm[,c("Start", "half", "Chromosome", "ChrRegion")]
+windows_arm_beta<-windows_arm[,c("half", "End", "Chromosome", "ChrRegion")]
+
+colnames(windows_arm_alpha)<-colnames(windows)
+colnames(windows_arm_beta)<-colnames(windows)
+
+windows_halved<-rbind(rbind(windows_telocen, windows_arm_alpha), windows_arm_beta)
+
+after<-ggplot(windows_halved, aes(y = "Sizes",  (End-Start)/1000000 ))+
+      # Half violin
+      ggdist::stat_halfeye(adjust = .5, width = .6, .width = 0, justification = -.2, point_colour = NA) +
+      # Boxplot 
+      geom_boxplot(width = .1, outlier.shape = NA) +
+      # Points
+      gghalves::geom_half_point_panel(side = "l", range_scale = .6,  alpha = .5, aes(color = ChrRegion))+
+      # scale_color_manual(values = c(rep("#3c7ae7",11),rep("#89b23e",11) ))+
+      # Adjust coordinates
+      # coord_flip()+
+      # coord_flip( xlim = c(1.3, NA))+
+      # Adjust labels
+      theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank(),  legend.position = "none")+
+      xlab("Window size in Mb")+
+      facet_grid(ChrRegion~., margins=TRUE)+
+      # Title
+      ggtitle("Arm regions as 2 windows")
+
+grid.arrange(before, after, ncol=2)
+
+write.table(windows_halved, "data/windows.txt", quote = F, row.names = F, col.names = T, sep = "\t")
+
+```
+
+<!-- Fill window information -->
+
+```{bash, include=showcode, eval=TRUE}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+NAME="afterMeetingWindows"
+cd "../../../"
+$ENVPY code/python/fillWindowMeasurements.py -m data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed  -w report/20220519_tutorialLogisticModel/${NAME}/data/windows.txt  -o report/20220519_tutorialLogisticModel/${NAME}/data/ -d "chromRegions"
+cd report/20220519_tutorialLogisticModel/${NAME}/
+
+```

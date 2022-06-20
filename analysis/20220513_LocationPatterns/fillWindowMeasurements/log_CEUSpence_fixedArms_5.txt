@@ -1,0 +1,15 @@
+2022-05-13 10:47:22,773 - Starting fillWindowMeasurements.py
+2022-05-13 10:47:22,773 - Parameters
+
+    recombination map       : data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed
+    window coordinates      : analysis/20220513_LocationPatterns/divideChromosomes/CEUSpence_fixedArms_5//windows.txt
+    output directory        : analysis/20220513_LocationPatterns/fillWindowMeasurements/
+
+2022-05-13 10:47:22,773 - Static data
+
+    inversion coordinates   : data/InversionsAnnotation_131Inv_20211117.csv
+    repeat coordinates      : data/genomicSuperDups.txt
+
+2022-05-13 10:47:22,773 - Loading data
+2022-05-13 10:47:23,279 - Calculating variables for each window
+2022-05-13 10:47:34,643 -     Files generated: analysis/20220513_LocationPatterns/fillWindowMeasurements//CEUSpence_fixedArms_5//windowData.txt

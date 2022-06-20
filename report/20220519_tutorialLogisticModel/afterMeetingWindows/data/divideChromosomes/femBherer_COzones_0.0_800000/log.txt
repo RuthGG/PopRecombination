@@ -1,0 +1,10 @@
+Parameters
+
+    recombination map       : data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed
+    band file               : data/cytoBand.txt
+    numer of windows        : 0 
+    crossover zone strength : 0.0
+    crossover zone replicas : 800000
+    output directory        : report/20220519_tutorialLogisticModel/afterMeetingWindows/data/divideChromosomes/
+    seed:                   : 2837206687
+

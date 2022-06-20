@@ -1,0 +1,11 @@
+2022-05-16 14:08:39,405 - Starting recMapAnnotation.py
+2022-05-16 14:08:39,405 - Parameters
+
+    map                     : data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed
+    pvalues                 : 0.001,0.01,0.1,0.999,0.99,0.9 
+    output directory        : analysis/20220516_LocationPatterns//GATfiles/Annotations/
+
+2022-05-16 14:08:39,405 - Loading data
+2022-05-16 14:08:39,654 - Calculating ERRs for each p-value
+2022-05-16 14:08:39,747 - Saving annotations file
+2022-05-16 14:08:40,059 - Finished

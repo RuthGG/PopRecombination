@@ -1,0 +1,15 @@
+2022-05-16 10:23:59,255 - Starting fillWindowMeasurements.py
+2022-05-16 10:23:59,255 - Parameters
+
+    recombination map       : data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed
+    window coordinates      : analysis/20220516_LocationPatterns/divideChromosomes/femBherer_VPzones_0.1_800000//windows.txt
+    output directory        : analysis/20220516_LocationPatterns/fillWindowMeasurements/
+
+2022-05-16 10:23:59,255 - Static data
+
+    inversion coordinates   : data/InversionsAnnotation_131Inv_20211117.csv
+    repeat coordinates      : data/genomicSuperDups.txt
+
+2022-05-16 10:23:59,255 - Loading data
+2022-05-16 10:23:59,745 - Calculating variables for each window
+2022-05-16 10:24:06,401 -     Files generated: analysis/20220516_LocationPatterns/fillWindowMeasurements//femBherer_VPzones_0.1_800000//windowData.txt
