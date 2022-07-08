@@ -1,0 +1,16 @@
+2022-06-21 11:16:08,209 - Starting makeIsochores.py
+2022-06-21 11:16:08,210 - Parameters
+
+    feature file            : data/genomicSuperDups_coords.bed
+    threshold range         : 0.09
+    output directory        : analysis/20220621_LocationPatterns/GATfiles/Isochores/
+
+2022-06-21 11:16:08,210 - Loading data
+2022-06-21 11:16:08,294 - Dividing chromosomes into sections with 0 strength 
+2022-06-21 11:16:09,084 -     Files generated: 
+    analysis/20220621_LocationPatterns/GATfiles/Isochores/genomicSuperDups_COzones_0.09/windows.txt
+    analysis/20220621_LocationPatterns/GATfiles/Isochores/genomicSuperDups_COzones_0.09/extremes.txt
+    analysis/20220621_LocationPatterns/GATfiles/Isochores/genomicSuperDups_COzones_0.09/densities.txt
+2022-06-21 11:16:22,316 -     Files generated: 
+    analysis/20220621_LocationPatterns/GATfiles/Isochores/genomicSuperDups_COzones_0.09/plot.png 
+2022-06-21 11:16:22,316 - Finished

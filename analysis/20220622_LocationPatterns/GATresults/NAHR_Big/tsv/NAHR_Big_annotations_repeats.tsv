@@ -1,0 +1,2 @@
+track	annotation	observed	expected	CI95low	CI95high	stddev	fold	l2fold	pvalue	qvalue	track_nsegments	track_size	track_density	annotation_nsegments	annotation_size	annotation_density	overlap_nsegments	overlap_size	overlap_density	percent_overlap_nsegments_track	percent_overlap_size_track	percent_overlap_nsegments_annotation	percent_overlap_size_annotation
+merged	annotations_repeats.bed	983218	470152.1530	41057.0000	988264.0000	276365.5852	2.0913	1.0644	5.1000e-02	5.1000e-02	4	1263129	4.7163e-02	7024	118088047	4.4092e+00	12	983218	3.6712e-02	300.0000	77.8399	0.1708	0.8326

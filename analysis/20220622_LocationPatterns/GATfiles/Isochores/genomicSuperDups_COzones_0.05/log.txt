@@ -1,0 +1,6 @@
+Parameters
+
+    feature file            : data/genomicSuperDups_coords.bed
+    threshold range         : 0.05
+    output directory        : analysis/20220620_LocationPatterns/GATfiles/Isochores/
+

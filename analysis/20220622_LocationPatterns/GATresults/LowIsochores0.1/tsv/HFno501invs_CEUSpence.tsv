@@ -1,0 +1,2 @@
+track	annotation	observed	expected	CI95low	CI95high	stddev	fold	l2fold	pvalue	qvalue	track_nsegments	track_size	track_density	annotation_nsegments	annotation_size	annotation_density	overlap_nsegments	overlap_size	overlap_density	percent_overlap_nsegments_track	percent_overlap_size_track	percent_overlap_nsegments_annotation	percent_overlap_size_annotation
+merged	genomicSuperDups_coords_normal.bed	20619	2002.8700	0.0000	4747.0000	2026.3860	10.2901	3.3632	1.0000e-02	1.0000e-02	27	134912	6.5273e-03	4239	46406919	2.2453e+00	6	20619	9.9759e-04	22.2222	15.2833	0.1415	0.0444

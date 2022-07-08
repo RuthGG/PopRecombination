@@ -41,7 +41,8 @@ cd report/20220519_tutorialLogisticModel/${NAME}
 
 <!-- Windows visualization -->
 
-```{r Base-workspace, eval=runR,echo=showcode, fig.cap="Black line is crossover density, blue and red points are local minima ans maxima respectively, centromeres in blue, chromosome limits in orange. Each chromosome has its own size and recombination scales. Telocentric chromosomes do not include p arm and centromere." ,  fig.height=6}
+```{r Base-workspace, eval=runR,echo=showcode, fig.cap="Black line is crossover density, blue and red points are local minima ans maxima respectively, centromeres in blue, chromosome limits in orange. Each chromosome has its own size and recombination scales. Telocentric chromosomes do not include p arm and centromere." }
+#fig.height=6}
 # Setup
 pacman::p_load(ggplot2)
 name <-"CEUSpence_COzones_0.03_1000000"
@@ -87,7 +88,7 @@ divChroms <- paste0("data/divideChromosomes/",name,"/")
   centromeres<-centromeres[!(rownames(centromeres) %in% c_rowlist),]
   
   # PLOT
-  ggplot()+
+  p<-ggplot()+
         geom_rect(data= centromeres,  aes(xmin = Start, xmax = End,  ymin = 0, ymax = Inf), fill = "blue4", alpha = 0.5)+
         geom_vline(data=starts, aes(xintercept = Start), color = "orange")+geom_vline(data=ends, aes(xintercept = End), color = "orange")+
         # geom_rect(data=windows, aes(xmin = Start, xmax = End, fill = ChrRegion, ymin = 0, ymax = Inf), alpha = 0.3)+
@@ -100,13 +101,15 @@ divChroms <- paste0("data/divideChromosomes/",name,"/")
          theme(axis.ticks.x = element_blank(),axis.text.x = element_blank(),axis.text.y = element_text(size = 5))+
         ylab("Rate (cM/Mb)")+xlab("")+ggtitle(name) 
 
+ggsave(paste0("dens.png"),  p, width=2480, height=3508/2, units = "px" , scale = 1.5)
 ```
 
 \newpage
 
 Next, we calculate telomeric and centromeric regions and divide the genome into windows accordingly (Figure \@ref(fig:Modified-workspace)). Telomeric regions are calculated from the extremes towards the centromere, starting at a chromosome limit and ending at the center point between the first local maximum and the next local minimum inwards. Centromeric regions are calculated from the centromere limits towards the extremes, starting at the centromere limit and ending at the center point between de limit and the next local maximum outwards. Centromeres are discarded because they tend to contain less reliable recombination estimates. The remaining spaces between telomeric and centromeric regions are divided into 2 windows and marked as arm regions. This last step is necessary, as arm regions are significantly larger than centromeric or telomeric regions if considered as a whole, which means that the levels of noise between the different chromosome regions would be different and could impact the result. In addition, this eliminates all the size outliers from the general distribution without actually deleting data (Figure \@ref(fig:SizeOutliers)).
 
-```{r Modified-workspace, eval=runR, echo=showcode,  fig.cap="ChrRegion-coded windows for telomeric, centromeric and arm categories. Black line is crossover density, blue and red points are local minima ans maxima respectively, chromosome limits in orange. Each chromosome has its own size and recombination scales. Telocentric chromosomes do not include p arm and centromere.",  fig.height=6 }
+```{r Modified-workspace, eval=runR, echo=showcode,  fig.cap="ChrRegion-coded windows for telomeric, centromeric and arm categories. Black line is crossover density, blue and red points are local minima ans maxima respectively, chromosome limits in orange. Each chromosome has its own size and recombination scales. Telocentric chromosomes do not include p arm and centromere.",}
+#fig.height=6 }
 windows <- data.frame()
 
 for (chrom in unique(extremes$Chromosome)) {
@@ -178,7 +181,7 @@ for (chrom in unique(extremes$Chromosome)) {
 
 
 
-  ggplot()+
+ p<- ggplot()+
         # geom_rect(data= centromeres,  aes(xmin = Start, xmax = End,  ymin = 0, ymax = Inf), fill = "blue4", alpha = 0.5)+
         geom_vline(data=starts, aes(xintercept = Start), color = "orange")+geom_vline(data=ends, aes(xintercept = End), color = "orange")+
         geom_rect(data=windows, aes(xmin = Start, xmax = End, fill = ChrRegion, ymin = 0, ymax = Inf), alpha = 0.3)+
@@ -191,6 +194,7 @@ for (chrom in unique(extremes$Chromosome)) {
          theme(axis.ticks.x = element_blank(),axis.text.x = element_blank(),axis.text.y = element_text(size = 5), legend.position = "top")+
         ylab("Rate (cM/Mb)")+xlab("")+ggtitle(paste0(name, " with chromosome regions")) 
   
+ggsave(paste0("denscolor.png"),  p, width=2480, height=3508/2, units = "px" , scale = 1.5)
 
 ```
 
