@@ -1,0 +1,601 @@
+
+10-100 kb windows in 500kb invs is 50 windows per inv
+Invs larger than 1.8kb have >5% of the inversion covered by exclusive windows
+78 inversions are at least 10kb
+
+I want to 
+1. Make sliding windows for repeat regions,  Take only those that overlap with the workspace (with bedtools makewindows and intersect)
+
+
+```{bash}
+TODAY="defTest"
+DIR="analysis/${TODAY}_LocationPatterns"
+CONDITIONS="avgBherer CEUSpence"
+OUTDIR="${DIR}/slWins/"
+HEADER="Chromosome\tStart\tEnd\tChrRegion"
+mkdir -p $OUTDIR
+
+for CONDITION in $CONDITIONS; do
+
+  ISOCHORES="${DIR}/GATfiles/Isochores/isochores_4breaks_${CONDITION}.bed"
+  WORKSPACE="${DIR}/GATfiles/Workspace/workspace_${CONDITION}.bed"
+  WINDOW="$OUTDIR/slWins_${CONDITION}.bed"
+  FILWINDOW="$OUTDIR/slWins_${CONDITION}_filtered.bed"
+  
+  bedtools makewindows -b $ISOCHORES -w 100000 -s 10000 -i src > $WINDOW
+  
+  echo -e $HEADER > $FILWINDOW
+  bedtools intersect -a $WINDOW -b $WORKSPACE -u >> $FILWINDOW
+  
+done
+```
+
+1.1 For each window make max, min, weighted RecRate (with fillWindowMeasurements)
+
+```{bash}
+TODAY="defTest"
+DIR="analysis/${TODAY}_LocationPatterns"
+#CONDITIONS="avgBherer CEUSpence"
+
+ENVPY="/home/rgomez/anaconda3/bin/python"
+
+#Bherer
+CONDITION="avgBherer"
+MAP="data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed"
+FILWINDOW="$DIR/slWins/slWins_${CONDITION}_filtered.bed"
+
+$ENVPY code/python/fillWindowMeasurements.py -m $MAP -w $FILWINDOW -o $DIR/slWins -d $CONDITION
+
+
+#Bherer
+CONDITION="CEUSpence"
+MAP="data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed"
+FILWINDOW="$DIR/slWins/slWins_${CONDITION}_filtered.bed"
+
+$ENVPY code/python/fillWindowMeasurements.py -m $MAP -w $FILWINDOW -o $DIR/slWins -d $CONDITION
+
+
+```
+
+
+2. Take windows overlapping inversions (segments) as observed
+
+
+```{bash}
+TODAY="defTest"
+DIR="analysis/${TODAY}_LocationPatterns/"
+CONDITIONS="avgBherer CEUSpence"
+OUTDIR="${DIR}/slWins/"
+#HEADER="Chromosome\tStart\tEnd\tChrRegion"
+mkdir -p $OUTDIR
+
+for CONDITION in $CONDITIONS; do
+
+   WINDOW="$OUTDIR/slWins_${CONDITION}.bed"
+   INVCOORD="${DIR}/GATfiles/Segments_byInv/*"
+  INVWINDOW="$OUTDIR/slWins_${CONDITION}_invs.bed"
+  
+  bedtools intersect -wa -wb -a $WINDOW -b $INVCOORD   > $INVWINDOW
+  
+done
+```
+
+
+3. Compare - THIS IS A FUNCTION
+I can use it later
+
+```{r}
+library(ggplot2)
+condition<-"avgBherer"
+
+# Upload genome measurements for a given condition
+genome<-read.table(paste0("analysis/defTest_LocationPatterns/slWins/fillWindowMeasurements/",condition,"/windowData.txt"), header = T, stringsAsFactors = F)
+
+# Upload inversion windows
+invs<-read.table(paste0("analysis/defTest_LocationPatterns/slWins/slWins_",condition,"_invs.bed"), stringsAsFactors = F)
+colnames(invs)<-c("Chromosome", "Start", "End", "ChrRegion", "order", "invChromosome", "invStart", "invEnd", "inv")
+```
+
+
+```{r function_sampleGenome}
+sampleGenome<-function(invs, genome, repDens, nSamples){
+    
+    # For a repeat density, select corresponding inversions
+    whichRep<-data.frame(table( invs$inv, invs$ChrRegion))
+    colnames(whichRep)<-c("inv", "ChrRegion", "Freq")
+    whichRep<-whichRep[whichRep$Freq >0,]
+    
+    heteroRep<-whichRep[duplicated(whichRep$inv), "inv"]
+    
+    subRep<-whichRep[!(whichRep$inv %in% heteroRep) & whichRep$ChrRegion %in% repDens,"inv" ]
+    
+    # Take info for selected rep density
+    genoInfo<-genome[genome$ChrRegion %in%  repDens,]
+    rownames(genoInfo)<-paste(genoInfo$Chromosome, genoInfo$Start, genoInfo$End, sep = "_")
+    
+    # Replace info for inv windows
+    invInfo<-invs[invs$inv %in% as.character(subRep),]
+    invInfo$tags<-paste(invInfo$Chromosome, invInfo$Start, invInfo$End, sep = "_")
+    
+    genoInfo[invInfo$tags, "ChrRegion" ]<-invInfo$inv
+    
+    ###MAK ELOOP
+    allinvsamples<-data.frame()
+    for (inversion in subRep){
+      
+      sampleSize<-nrow(invInfo[invInfo$inv == inversion,])
+      
+      # Make subset  
+      toSam<-genoInfo[genoInfo$ChrRegion %in%  repDens,]
+      toSam$previous<-toSam$Start - c(0, toSam$Start[1:length(toSam$Start)-1])
+      
+      # Make sure it is sorted
+      toSam<-toSam[order(toSam$Chromosome, toSam$Start),]
+      
+      # Give it rownames
+      rownames(toSam)<-c(1:nrow(toSam))
+      
+      # Select sampleable rownames
+      nonums<-c()
+      nostarters<-as.numeric(rownames(toSam[toSam$previous != 10000,]))-sampleSize+1
+      for(n in nostarters){
+        nonums<-c(nonums, c(n:(n+sampleSize-2)))
+      }
+      
+      options<-as.numeric(rownames(toSam)[!(as.numeric(rownames(toSam)) %in% nonums)])
+  
+      # Make random samples
+      samples<-data.frame()
+      
+      starters<-sample(options, nSamples, replace = F)
+      samples<-data.frame()
+        for(i in starters){
+          sample<-toSam[seq(i,i+sampleSize-1),]
+          sample$name<-i
+          samples<-rbind(samples,sample)
+        }
+      samples$inv<-inversion
+      allinvsamples<-rbind(allinvsamples, samples)
+    }
+    
+return(list(allinvsamples,genoInfo[!(genoInfo$ChrRegion %in%  repDens),] ))
+}
+```
+
+
+```{r}
+# Test function
+repDens<-"High005"
+nSamples<-1000
+
+samples<-sampleGenome(invs=invs, genome=genome, repDens=repDens, nSamples=nSamples)
+
+
+```
+
+
+
+I can also make a meta-analysis of:
+min and max weighted recRate for inv vs the same for an equivalent number of windows randomly selected
+
+OK BUT
+what they comapre is the ratio between population and pedigree, so I need the same windows for each...
+1.1 For each window make max, min, weighted RecRate (with fillWindowMeasurements), FOR THE OTHER WINDOW SET (I make both just in case one of them doesn't work)
+
+```{bash}
+TODAY="defTest"
+DIR="analysis/${TODAY}_LocationPatterns/"
+
+#CONDITIONS="avgBherer CEUSpence"
+
+ENVPY="/home/rgomez/anaconda3/bin/python"
+
+#Bherer
+CONDITION="CEUSpence"
+MAP="data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed"
+FILWINDOW="$DIR/slWins/slWins_${CONDITION}_filtered.bed"
+
+$ENVPY code/python/fillWindowMeasurements.py -m $MAP -w $FILWINDOW -o $DIR/slWins/flipped -d $CONDITION
+
+
+#Bherer
+CONDITION="avgBherer"
+MAP="data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed"
+FILWINDOW="$DIR/slWins/slWins_${CONDITION}_filtered.bed"
+
+$ENVPY code/python/fillWindowMeasurements.py -m $MAP -w $FILWINDOW -o $DIR/slWins/flipped -d $CONDITION
+
+
+```
+
+Now I'll use the avgBherer with Spence map which is the one that worked best:
+
+```{r}
+library(ggplot2)
+condition<-"avgBherer"
+repDens<-"High005"
+
+# Upload genome measurements for a given condition
+genome_ped<-read.table(paste0("analysis/defTest_LocationPatterns/slWins/fillWindowMeasurements/",condition,"/windowData.txt"), header = T, stringsAsFactors = F)
+genome_pop<-read.table(paste0("analysis/defTest_LocationPatterns/slWins/flipped/fillWindowMeasurements/",condition,"/windowData.txt"), header = T, stringsAsFactors = F)
+
+# Ratio of the two RATES ped/pop
+genome<-merge(genome_ped, genome_pop, by = c("Chromosome", "Start", "End", "ChrRegion"), suffixes = c("_ped", "_pop") )
+genome$WAvgRate_ped_pop<-genome$WAvgRate_ped/genome$WAvgRate_pop
+
+# Upload inversion info
+invs<-read.table(paste0("analysis/defTest_LocationPatterns/slWins/slWins_",condition,"_invs.bed"), stringsAsFactors = F)
+colnames(invs)<-c("Chromosome", "Start", "End", "ChrRegion", "order", "invChromosome", "invStart", "invEnd", "inv")
+
+#Make samples
+samples<-sampleGenome(invs=invs, genome=genome, repDens =repDens, nSamples = 1000)
+sampleMeasurements<-samples[[1]]
+invMeasurements<-samples[[2]]
+
+mins_dist<-aggregate( WAvgRate_ped_pop ~ name+inv, sampleMeasurements, min)
+maxs_dist<-aggregate( WAvgRate_ped_pop ~ name+inv, sampleMeasurements, max)
+randist<-merge(mins_dist, maxs_dist, by = c("name", "inv"), suffixes = c(".min", ".max"))
+randist<-melt(randist, id.vars = c("inv", "name"))
+
+mins_ori<-aggregate(WAvgRate_ped_pop ~ ChrRegion, invMeasurements, min )
+maxs_ori<-aggregate(WAvgRate_ped_pop ~ ChrRegion, invMeasurements, max )
+oridist<-merge(mins_ori, maxs_ori, by = c( "ChrRegion"), suffixes = c(".min", ".max"))
+oridist<-melt(oridist, id.vars = c("ChrRegion"))
+colnames(oridist)<-c("inv", "variable", "value")
+
+ggplot()+geom_boxplot(data=randist, aes(x = inv, y = value))+
+  geom_point(data=oridist, aes(x = inv, y = value), color = "red")+
+  scale_y_log10()+
+  facet_grid(variable~.)
+
+```
+
+
+SHOULD REPEAT THOSE ANALYSES THAT DEPEND ON FILLWINDOWMEASUREMENTS!
+
+# Invented method
+
+## Step 1
+I will need: sliding windows with min, max, weighted recRate (done)
+
+```{r}
+library(ggplot2)
+condition<-"avgBherer"
+
+# Upload genome measurements for a given condition
+genome<-read.table(paste0("analysis/defTest_LocationPatterns/slWins/fillWindowMeasurements/",condition,"/windowData.txt"), header = T, stringsAsFactors = F)
+
+```
+
+These sliding windows will be used to compare rec measurements inside the actual and simulated inversions.
+## Step 2 Generate inv coordinate tables (actual and simulated)
+OJO! 
+
+Why do I sample the genome and not all the possible numbers? The only reason is because a vector with all the positions in the genome would be very large, while sampling windows is a good approximation. I exclude those windows overlapping with inversions and I leave space at the start and the end of the chromosome to not cut the inversion, but I do not leave space for flanking regions because it could happen in real life that I do not have enough space for flanking regions of a determinate size. 
+
+> In addition, I want to make sure that permutations do not overlap other invesions, even if I'm looking only at big invs. This is somethong that Basatena does to avoid biases. 
+
+```{r}
+
+# These are INCLUSIVE made with bedtools
+invs<-read.table(paste0("analysis/defTest_LocationPatterns/slWins/slWins_",condition,"_invs.bed"), stringsAsFactors = F)
+colnames(invs)<-c("Chromosome", "Start", "End", "ChrRegion", "order", "invChromosome", "invStart", "invEnd", "inv")
+
+```
+
+```{r}
+# OJO! measurements overlap a lot for invs < 100 kb (sliding window size). They use originally this size for invs > 500kb
+# I will make a """general""" dataset (> 100kb) and a "paper equivalent" dataset (> 500kb)
+#This will make simulations go faster
+
+biginvs<-unique(invs[invs$invSize >= 100000, "inv"])
+verybiginvs<-unique(invs[invs$invSize >= 500000, "inv"])
+
+```
+
+```{r function_sampleGenome}
+sampleGenome<-function(toSample, invInfo, genoInfo, repDens, nSamples){
+  slidingSize<-10000
+  ####################################################
+    # toSample is the list of invs we want to simulate
+    # invInfo is the list of all invs (we want to avoid overlaps with these)
+    # genome is the dataset to sample from
+    # repDens can be "same" to resample in the main repDens profile of the real inv or "all" to resample in all the genome
+    # nSamples is sample size
+  ####################################################
+  
+    # TAKE INVERSION SAMPLE TEMPLATES
+      toSampleInfo<-invInfo[invInfo$inv %in% toSample,]
+    
+    # DETERMINE REPEAT STATUS for sample templates
+      repeatsTable<-data.frame(table(toSampleInfo$inv, toSampleInfo$ChrRegion))
+      repeatsTable<-merge(aggregate(Freq ~ Var1, data = repeatsTable, FUN = "max"), repeatsTable, all.x = T)
+      
+    # GENOME FILTERIGNG
+      # Tag genome
+      rownames(genoInfo)<-paste(genoInfo$Chromosome, genoInfo$Start, genoInfo$End, sep = "_")
+     
+      # Tag inv list
+      invInfo$tags<-paste(invInfo$Chromosome, invInfo$Start, invInfo$End, sep = "_")
+      
+      # Replace Repeat info to avoid ALL inv regions
+      genoInfo[invInfo$tags, "ChrRegion" ]<-invInfo$inv
+      
+      # Now, for each used repeat status OR for all the genome, we want to make a list of all the sampleable sites
+      sampleables<-list()
+      if(repDens == "same"){
+        for (repD in unique(repeatsTable$Var2)){
+         sampleables[[repD]]<-genoInfo[genoInfo$ChrRegion == repD,] 
+        }
+      }else{
+        sampleables[["all"]]<-genoInfo[genoInfo$ChrRegion %in%  unique(repeatsTable$Var2) ,]
+      }
+    
+    # MAKE LOOP
+    allinvsamples<-data.frame()
+
+    for (inversion in toSample){
+      
+      # Calculate number of windows
+      sampleSize<-nrow(invInfo[invInfo$inv == inversion,])
+      
+      # Select subset and prepare to calculate excluded coords  
+      whereToSample<-ifelse(repDens == "all", "all", as.character(repeatsTable[repeatsTable$Var1 == inversion,"Var2"]))
+      toSam<-sampleables[[whereToSample]]     
+      toSam$previous<-toSam$Start - c(0, toSam$Start[1:length(toSam$Start)-1]) #mark previous coord
+      toSam<-toSam[order(toSam$Chromosome, toSam$Start),]#sort
+      rownames(toSam)<-c(1:nrow(toSam)) # give rownames
+      
+      # Select sampleable rownames
+      nonums<-c()
+      nostarters<-as.numeric(rownames(toSam[toSam$previous != slidingSize,]))-sampleSize+1
+      for(n in nostarters){
+        nonums<-c(nonums, c(n:(n+sampleSize-2)))
+      }
+      
+      options<-as.numeric(rownames(toSam)[!(as.numeric(rownames(toSam)) %in% nonums)])
+  
+      # Make random samples
+      starters<-sample(options, nSamples, replace = T)
+      
+      # Generate a table like the invInfo table
+      samples<-toSam[starters, c("Chromosome", "Start", "End", "ChrRegion")]
+      samples$End<-samples$Start + unique(invInfo[invInfo$inv == inversion,"invSize"])
+      samples$inv<-paste(inversion , c(1:nrow(samples)), sep = "_")
+      
+      
+      # Add to table
+      allinvsamples<-rbind(allinvsamples,samples)
+    }
+    colnames(allinvsamples)<-c("Chromosome", "invStart", "invEnd", "ChrRegion", "inv")
+return(allinvsamples)
+}
+```
+
+```{r}
+#Bigincs
+biginvs_permutations_all<-sampleGenome(biginvs, invs, genome, "all", 10000)
+biginvs_permutations_same<-sampleGenome(biginvs, invs, genome, "same", 10000)
+
+# Verybiginvs
+verybiginvs_permutations_all<-sampleGenome(verybiginvs, invs, genome, "all", 10000)
+verybiginvs_permutations_same<-sampleGenome(verybiginvs, invs, genome, "same", 10000)
+
+```
+
+
+## Step 3 Core method (take measurements of avg, min, max fold change)
+
+Since I will need permutations to compare to, all the following method should be grouped in easy-use functions that take as input inversions coordinates (actual or simulated). 
+ I will also need the measurements for the windows outside, in fixed and proportional modes. In Seich Basatena paper they use fixed 0.75Mb = 750kb for a 0.75Mb simulated inv. I could use something near the median inv length, maybe (not the average bc there are very big invs). 
+
+```{r}
+summary(invs$invEnd - invs$invStart )
+```
+
+
+So, 200kb it is. 
+Since I do not leave space for flanking regions because it could happen in real life that I do not have enough space for flanking regions of a determinate size, the simulations with negative sides will be deleted. However, this only works with the start of the chromosome. Then, I need to put another filter for the overlaps... so I need an overlap measurement.
+
+```{r}
+library(reshape2)
+#Make an adjacent list
+makeAdjacents<-function(invs, store){
+  #############################################
+  # Invs is a table, and I need the columns invEnd, invStart, "Chromosome, inv
+  #####################################
+  invs$invSize<-invs$invEnd - invs$invStart
+  FixSize<-200000
+  
+   ## Proportional
+  invs$outPropL.Start<-invs$invStart - invs$invSize
+  invs$outPropL.End<-invs$invStart
+  invs$outPropR.Start<-invs$invEnd 
+  invs$outPropR.End<-invs$invEnd + invs$invSize
+   ## Fixed
+  invs$outFixL.Start<-invs$invStart - FixSize
+  invs$outFixL.End<-invs$invStart
+  invs$outFixR.Start<-invs$invEnd 
+  invs$outFixR.End<-invs$invEnd + FixSize
+  
+  # Adjacents
+  outs<-melt(invs[, c("Chromosome", "inv", grep("out", colnames(invs), value = T))], id.vars = c("Chromosome", "inv"))
+  outs<-cbind(outs, stringr::str_split_fixed(outs$variable, "\\.", 2))
+  outs<-reshape(outs, direction = "wide", idvar = c("Chromosome" , "inv", "1"), timevar = "2")
+  outs$name<-paste(outs$inv, outs$`1`, sep = "_")
+  outs<-outs[,c("Chromosome", "value.Start", "value.End", "name")]
+  
+  # Remove negative adjacents
+  outs<-outs[outs$value.Start >0,]
+  
+  write.table(outs, store, quote = F, sep = "\t", row.names = F, col.names = F)
+  return(outs)
+}
+```
+
+Calculate adjacent tables
+```{r}
+dir.create( "analysis/defTest_LocationPatterns/slWins/adjacentCoords/")
+
+invs_sides<-makeAdjacents(unique(invs[,c("Chromosome", "invStart", "invEnd" , "inv")]), "analysis/defTest_LocationPatterns/slWins/adjacentCoords/invs.bed")
+
+#Bigincs
+biginvs_permutations_all_sides<-makeAdjacents(biginvs_permutations_all, "analysis/defTest_LocationPatterns/slWins/adjacentCoords/biginvs_permutations_all.bed")
+biginvs_permutations_same_sides<-makeAdjacents(biginvs_permutations_same, "analysis/defTest_LocationPatterns/slWins/adjacentCoords/biginvs_permutations_same.bed")
+
+# Verybiginvs
+verybiginvs_permutations_all_sides<-makeAdjacents(verybiginvs_permutations_all, "analysis/defTest_LocationPatterns/slWins/adjacentCoords/verybiginvs_permutations_all.bed")
+verybiginvs_permutations_same_sides<-makeAdjacents(verybiginvs_permutations_same, "analysis/defTest_LocationPatterns/slWins/adjacentCoords/verybiginvs_permutations_same.bed")
+
+unique(biginvs_permutations_all[grep("HsInv0501", biginvs_permutations_all$inv), c("Chromosome", "invStart")])
+
+```
+
+
+Take windows ovelapping outside coords. I don't know if these simulations are valid for both maps!!I took the samples in the Bherer map, which has less regions avaiable, so it should be more or less universal. I require the overlap to be reported to delete those entries that go beyond the chromosome limits. The size for each condition was about 8Gb and I couldn't load it all together, so I changed the loops to have 1 overlap file per original bedfile. 
+
+```{bash}
+TODAY="defTest"
+DIR="analysis/${TODAY}_LocationPatterns/"
+CONDITIONS="avgBherer CEUSpence"
+OUTDIR="${DIR}/slWins/"
+INVCOORDS="${DIR}/slWins/adjacentCoords/"
+#HEADER="Chromosome\tStart\tEnd\tChrRegion"
+mkdir -p "$OUTDIR/adjacentMeasurements/"
+
+for CONDITION in $CONDITIONS; do
+  for INVCOORD in $(ls $INVCOORDS); do
+
+   WINDOW="$OUTDIR/slWins_${CONDITION}.bed"
+   OVERLAPS="$OUTDIR/adjacentMeasurements/slWaC_${CONDITION}_${INVCOORD}"
+  
+   bedtools intersect -wo -a $WINDOW -b $INVCOORDS/$INVCOORD   > $OVERLAPS
+  done
+done
+```
+
+Now that I have everything in a single table, I can make all the comparisons, but I want to make sure that it can be repeated for another dataset (each file)
+
+```{r}
+# As if this were a function
+#######################
+# Here the inputs
+
+# The file shuold be processed inside the function because they are large files
+file<-"analysis/defTest_LocationPatterns/slWins/adjacentMeasurements/slWaC_avgBherer_verybiginvs_permutations_all.bed"
+condition<-"avgBherer"
+
+######################
+
+# These are INCLUSIVE made with bedtools
+out<-read.table(file, stringsAsFactors = F)
+colnames(out)<-c("Chromosome", "Start", "End", "ChrRegion",  "outChromosome", "outStart", "outEnd", "outID", "overlap")
+
+# Separate by types
+out$type<-"Prop"
+out[grep("Fix", out$outID), "type"]<-"Fix"
+
+# Separate the inv name
+out<-cbind(out, stringr::str_split_fixed(out$outID, "_out", 2))
+colnames(out)[colnames(out) %in% c("1", "2")]<-c("inv", "place")
+
+# Save lefts an rights
+out$place<-gsub("Fix", "", gsub("Prop", "",  out$place))
+
+# ADD MEASUREMENTS
+# Upload genome measurements for a given condition
+genome<-read.table(paste0("analysis/defTest_LocationPatterns/slWins/fillWindowMeasurements/",condition,"/windowData.txt"), header = T, stringsAsFactors = F)
+
+# Merge by coordinate
+out<-merge(out, genome)
+rm(genome)
+
+outPropMeasurements<-merge(out[out$type == "Prop",], genome)
+avg<-aggregate(WAvgRate ~ inv, outPropMeasurements, "mean")
+min<-aggregate(WAvgRate ~ inv, outPropMeasurements, "min")
+max<-aggregate(WAvgRate ~ inv, outPropMeasurements, "max")
+
+outPropMesSum<-merge(merge(max, min, by = "inv", suffixes = c("_max", "_min")), avg, by = "inv")
+
+# COMBINED OUT FIXED MEASUREMENTS
+outFixMeasurements<-merge(out[out$type == "Fix",], genome)
+avg<-aggregate(WAvgRate ~ inv, outFixMeasurements, "mean")
+min<-aggregate(WAvgRate ~ inv, outFixMeasurements, "min")
+max<-aggregate(WAvgRate ~ inv, outFixMeasurements, "max")
+
+outFixMesSum<-merge(merge(max, min, by = "inv", suffixes = c("_max", "_min")), avg, by = "inv")
+
+
+```
+
+
+
+## Step 4 Apply method running function, make summaries
+
+## --- this following goes to Step 3 mainly in the form of functions ---
+
+
+
+```{r}
+# IN MEASUREMENTS
+
+inMeasurements<-merge(invs, genome )
+avg<-aggregate(WAvgRate ~ inv, inMeasurements, "mean")
+min<-aggregate(WAvgRate ~ inv, inMeasurements, "min")
+max<-aggregate(WAvgRate ~ inv, inMeasurements, "max")
+
+inMesSum<-merge(merge(max, min, by = "inv", suffixes = c("_max", "_min")), avg, by = "inv")
+
+# COMBINED OUT PROPORTIONAL MEASUREMENTS
+
+outPropMeasurements<-merge(out[out$type == "Prop",], genome)
+avg<-aggregate(WAvgRate ~ inv, outPropMeasurements, "mean")
+min<-aggregate(WAvgRate ~ inv, outPropMeasurements, "min")
+max<-aggregate(WAvgRate ~ inv, outPropMeasurements, "max")
+
+outPropMesSum<-merge(merge(max, min, by = "inv", suffixes = c("_max", "_min")), avg, by = "inv")
+
+# COMBINED OUT FIXED MEASUREMENTS
+outFixMeasurements<-merge(out[out$type == "Fix",], genome)
+avg<-aggregate(WAvgRate ~ inv, outFixMeasurements, "mean")
+min<-aggregate(WAvgRate ~ inv, outFixMeasurements, "min")
+max<-aggregate(WAvgRate ~ inv, outFixMeasurements, "max")
+
+outFixMesSum<-merge(merge(max, min, by = "inv", suffixes = c("_max", "_min")), avg, by = "inv")
+
+
+```
+
+And now the fold change for the measurments
+
+```{r}
+foldChanges<-merge(merge(outFixMesSum, outPropMesSum, by = "inv", suffixes = c("_outFix", "_outProp")), inMesSum, by = "inv")
+
+foldChanges$FC_min_outFix<-foldChanges$WAvgRate_min/foldChanges$WAvgRate_min_outFix
+foldChanges$FC_max_outFix<-foldChanges$WAvgRate_max/foldChanges$WAvgRate_max_outFix
+foldChanges$FC_avg_outFix<-foldChanges$WAvgRate/foldChanges$WAvgRate_outFix
+foldChanges$FC_min_outProp<-foldChanges$WAvgRate_min/foldChanges$WAvgRate_min_outProp
+foldChanges$FC_max_outProp<-foldChanges$WAvgRate_max/foldChanges$WAvgRate_max_outProp
+foldChanges$FC_avg_outProp<-foldChanges$WAvgRate/foldChanges$WAvgRate_outProp
+
+
+```
+
+
+```{r}
+# OJO! measurements overlap a lot for invs < 100 kb (sliding window size). They use originally this size for invs > 500kb
+# I will make a """general""" dataset (> 100kb) and a "paper equivalent" dataset (> 500kb)
+
+biginvs<-unique(invs[invs$invSize >= 100000, "inv"])
+verybiginvs<-unique(invs[invs$invSize >= 500000, "inv"])
+
+```
+
+```{r}
+biginvs_fc<-foldChanges[foldChanges$inv %in% biginvs,]
+
+verybiginvs_fc<-foldChanges[foldChanges$inv %in% verybiginvs,]
+
+```
+
+

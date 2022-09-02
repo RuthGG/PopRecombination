@@ -1,0 +1,226 @@
+```{r}
+load("analysisparams.Rdata")
+```
+
+### Workspace
+
+```{bash makeAnnotations}
+
+TODAY="defTest"
+ENVPY="/home/rgomez/anaconda3/bin/python"
+OUTDIR="analysis/${TODAY}_LocationPatterns/"
+
+# Spence CEU map
+$ENVPY code/python/divideChromosomes.py \
+  -m data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed \
+  -b data/cytoBand.txt -f 1 -s 0 -r 0 -o $OUTDIR -d CEUSpence
+
+# Bherer average
+$ENVPY code/python/divideChromosomes.py \
+  -m  data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed  \
+  -b data/cytoBand.txt -f 1 -s 0 -r 0 -o $OUTDIR -d avgBherer
+
+# Bherer female
+$ENVPY code/python/divideChromosomes.py \
+  -m  data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed  \
+  -b data/cytoBand.txt -f 1 -s 0 -r 0 -o $OUTDIR -d femBherer
+
+mkdir -p "analysis/${TODAY}_LocationPatterns/GATfiles/Workspace/"
+
+grep -v "cen" "analysis/${TODAY}_LocationPatterns/divideChromosomes/CEUSpence_fixedArms_1/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/${TODAY}_LocationPatterns/GATfiles/Workspace/workspace_CEUSpence.bed"
+
+grep -v "cen" "analysis/${TODAY}_LocationPatterns/divideChromosomes/avgBherer_fixedArms_1/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/${TODAY}_LocationPatterns/GATfiles/Workspace/workspace_avgBherer.bed"
+
+grep -v "cen" "analysis/${TODAY}_LocationPatterns/divideChromosomes/femBherer_fixedArms_1/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/${TODAY}_LocationPatterns/GATfiles/Workspace/workspace_femBherer.bed"
+
+
+```
+
+### Annotations
+
+```{bash makeAnnotarions}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+# ANALYSIS WIDOWS: 5 fixed windows, and crossover zones with 0 persistence and 40k simulations (sample size similar to Bell et al.2020)
+TODAY="defTest"
+# Spence CEU map
+$ENVPY code/python/recMapAnnotation.py -l data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/${TODAY}_LocationPatterns/ -d "CEUSpence"
+
+# Bherer average
+$ENVPY code/python/recMapAnnotation.py -l data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed  -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/${TODAY}_LocationPatterns/ -d "avgBherer"
+
+# Bherer female
+$ENVPY code/python/recMapAnnotation.py -l data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/${TODAY}_LocationPatterns/ -d "femBherer"
+```
+
+
+```{bash makeAnnotations_repeats}
+TODAY="defTest"
+# Repeats
+cp data/genomicSuperDups_coords.bed analysis/${TODAY}_LocationPatterns/GATfiles/Annotations/annotations_repeats.bed
+
+```
+
+
+### Isochores
+
+I make 2.5Mb windows of the CEUSpence workspace because it is the widest. 
+```{r prepareFunctions}
+# OK let's try to find out regions with similar repeat density
+
+repDensitiesCalculator<-function(workspFile, MbWin, name){
+
+rep<-read.table("data/genomicSuperDups_coords.bed", header = T)
+workspace<-win<-read.table(workspFile)
+colnames(workspace)<-c("chrom", "start", "end")
+
+# Which is the ideal win size? - 15k, 2.5k...
+size <- MbWin * 1000000
+
+# Make windows with this winSizes
+genoWindows<-do.call("rbind", apply(workspace, 1, function(x){
+  v<-seq(x["start"], as.numeric(x["end"])+size, size)
+  starts<-v[1:length(v)-1]
+  ends<-v[2:length(v)]
+  data.frame(x["chrom"], starts, ends)
+}))
+
+colnames(genoWindows)<-colnames(workspace)
+
+# Now I calculate the repeat nucleotide overlap for each of them
+genoWindows$nucOverlap<-   apply(genoWindows, 1, function(x){
+     invStart <- as.numeric(x["start"])
+     invEnd<- as.numeric(x["end"])
+     repC<-rep[as.character(rep$chrom) == x["chrom"],]
+     repO<-unique(repC[( (  repC$chromEnd %in% c(invStart:invEnd)  )  | 
+             (  repC$chromStart %in% c(invStart:invEnd) ) | 
+             (  repC$chromStart < invStart&  repC$chromEnd > invEnd )
+            ), ])
+     repO[repO$chromStart < invStart , "chromStart"]<-invStart
+     repO[repO$chromEnd > invEnd , "chromEnd"]<-invEnd
+     
+     repO$size<-repO$chromEnd - repO$chromStart
+     sum(repO$size)
+   })
+  write.table(genoWindows, paste0(gatfiledir, "/Isochores/rawRepDensity_",name, "_",MbWin  ,"Mb.bed"))
+  return(paste0(gatfiledir, "/Isochores/rawRepDensity_",name, "_",MbWin  ,"Mb.bed"))
+}
+
+isoCreator<-function(densList,rawRep,  name){
+genoWindows<-read.table(rawRep)
+winSize<-unique(genoWindows$end - genoWindows$start)
+genoWindows$nucDensity <- genoWindows$nucOverlap / winSize
+
+genoWindows$isochore<-"Low"
+for(i in densList){
+  genoWindows[genoWindows$nucDensity >= i, "isochore"]<- paste0("High",sub("\\.", "", i))
+}
+dir.create(paste0(gatfiledir,"/Isochores"), recursive = T, showWarnings = F)  
+write.table(genoWindows[,c("chrom", "start", "end", "isochore")], paste0(gatfiledir,"/Isochores/isochores_",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+}
+
+```
+
+```{r makeIsochore}
+mbwin<-Mb
+listNames<-c("CEUSpence","avgBherer", "femBherer" )
+for (name in listNames){
+  workspfile<-paste0(gatfiledir,"/Workspace/workspace_",name,".bed")
+  rawrep<-repDensitiesCalculator(workspfile ,  mbwin, name)
+  isoCreator(c( 0.05, 0.8,1.6, 2.8),rawrep, paste0("4breaks_", name))
+}
+
+```
+
+
+
+
+### Segments
+
+```{r makeSegments}
+
+# Add libraries
+pacman::p_load(vcfR, ggplot2)
+
+# Setup 
+dir.create(paste0(gatfiledir,"/Segments"), showWarnings = F)
+
+# Read  VCF info
+vcf<-read.vcfR("data/InversionGenotypes_processed/allgenotypes.vcf")
+
+vcfInfo<-vcfR2tidy(vcf, info_only = TRUE)$fix
+
+# Recalculate frquency for del vars
+delinvs<-sub("Del", "",grep("Del", vcfInfo$ID, value =  T) )
+delinvs<-delinvs[delinvs != "HsInv0030"]
+
+for (var in delinvs) {
+  
+vartable<-vcfInfo[vcfInfo$ID == var, c("AC_EUR","AN_EUR")]
+deltable<-vcfInfo[vcfInfo$ID == paste0(var, "Del"), c("AC_EUR","AN_EUR")]
+
+AN_total<-(as.numeric(vartable$AN_EUR) - as.numeric(vartable$AC_EUR)) + as.numeric(vartable$AC_EUR) + as.numeric(deltable$AC_EUR)
+
+vcfInfo[vcfInfo$ID == var, "AF_EUR"]<-as.character(as.numeric(vartable$AC_EUR)/AN_total)
+}
+
+vcfInfo$AF_EUR<-as.numeric(vcfInfo$AF_EUR)
+
+# SELECT A FREQUENCY IN THE SETUP
+# Comparison of selectefd frequency with distribution
+
+p <- ggplot(vcfInfo, aes(x = AF_EUR))+geom_histogram()+
+  geom_vline(xintercept = summary(vcfInfo$AF_EUR)[3], color = "green")+
+  geom_vline(xintercept=summary(vcfInfo$AF_EUR)[4], color = "blue")+
+  geom_vline(xintercept = freq)
+# p
+
+# Chromosome format
+vcfInfo$CHROM<-paste0("chr",vcfInfo$CHROM)
+
+#OUTLIER!
+# NAHR_05<-invNAHR[invNAHR$nucDensity <= 1.6 | invNAHR$nucDensity >= 1.7  ,]
+# This is HsInv0228, the inversion repeat density does not match with the density assigned according to repeat density map of 2.5kb.
+# vcfInfo<-vcfInfo[vcfInfo$ID!= "HsInv0228",]
+
+# In addition, now that inversion frequencies are calculated, I delete the Del versions to avoid overrepresentation
+vcfInfo<-vcfInfo[!(vcfInfo$ID %in% grep("Del", vcfInfo$ID, value=T)),]
+
+# Classification by high-low frequency
+# lowfreq<-vcfInfo[vcfInfo$AF_EUR < freq,c("CHROM", "POS", "END", "ID")]
+# hifreq<-vcfInfo[vcfInfo$AF_EUR >= freq,c("CHROM", "POS", "END", "ID")]
+
+# write.table(lowfreq,paste0(gatfiledir,"/Segments/LFinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+# write.table(hifreq, paste0(gatfiledir,"/Segments/HFinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+# write.table(hifreq[hifreq$ID != "HsInv0501",], paste0(gatfiledir,"/Segments/HFno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# Classification by type
+# NH<-vcfInfo[ vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")]
+# NAHR<-vcfInfo[ vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")]
+
+# write.table(NH,paste0(gatfiledir,"/Segments/NHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+# write.table(NAHR, paste0(gatfiledir,"/Segments/NAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+# write.table(NAHR[NAHR$ID != "HsInv0501" ,], paste0(gatfiledir,"/Segments/NAHRno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# Classification by freq AND type
+LFNH<-vcfInfo[vcfInfo$AF_EUR < freq & vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")]
+LFNAHR<-vcfInfo[vcfInfo$AF_EUR < freq & vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")]
+HFNH<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")]
+HFNAHR<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")]
+# HFNAHRno<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NAHR" & vcfInfo$ID != "HsInv0501",c("CHROM", "POS", "END", "ID")]
+
+write.table(LFNH, paste0(gatfiledir,"/Segments/LFNHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(LFNAHR, paste0(gatfiledir,"/Segments/LFNAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(HFNH, paste0(gatfiledir,"/Segments/HFNHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(HFNAHR, paste0(gatfiledir,"/Segments/HFNAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+# write.table(HFNAHRno, paste0(gatfiledir,"/Segments/HFNAHRno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# All invs
+# ALL<-vcfInfo[,c("CHROM", "POS", "END", "ID")]
+# ALLno<-vcfInfo[vcfInfo$ID != "HsInv0501",c("CHROM", "POS", "END", "ID")]
+
+# write.table(ALL, paste0(gatfiledir,"/Segments/invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+# write.table(ALLno, paste0(gatfiledir,"/Segments/no501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+```
+
+
+

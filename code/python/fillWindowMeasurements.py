@@ -37,7 +37,7 @@ args = parser.parse_args()
 # Test arguments
 # ------------------------------
 # recFile = "../../data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed"
-# windowCoords = '../../analysis/20220503_LocationPatterns/20220503_ArmSections/fixedArmWindows_5.csv'
+# windowCoords = '../../analysis/defTest_LocationPatterns/slWins/slWins_avgBherer_filtered.bed'
 # outDir = "../../tmp"
 # runName = "test"
 # invFile = '../../data/InversionsAnnotation_131Inv_20211117.csv'
@@ -85,7 +85,7 @@ logging.info( "Loading data")
 # Recombination map, 0-based, right-exclusive
 recRate = pd.read_csv(recFile, sep = "\t", header = 0)
 recRate.set_axis(["Chromosome", "Start", "End", "Rate"] ,axis = 1, inplace = True)
-recRate["winSize"] = recRate["End"]-recRate["Start"] 
+#recRate["winSize"] = recRate["End"]-recRate["Start"] 
 
 # Window coordinates,  0-based, right-exclusive
 winRegions =  pd.read_csv(windowCoords, sep = "\t", header = 0)
@@ -120,7 +120,7 @@ logging.info("Calculating variables for each window")
 winRegions.reset_index(drop=True, inplace=True) 
 
 # Physical size  
-winRegions["Length(bp)"] = winRegions.End - winRegions.Start 
+#winRegions["Length(bp)"] = winRegions.End - winRegions.Start 
 
 # Inversions, repeats, maps - EVERYTHING IS 0-BASED
 for index, row in winRegions.iterrows():
@@ -141,11 +141,19 @@ for index, row in winRegions.iterrows():
     winRegions.loc[index,"intraRepCounts"] = len(rep_part_A[(rep_part_A.chrom == rep_part_A.otherChrom)].index) + len(rep_part_B[(rep_part_B.chrom == rep_part_B.otherChrom)].index)
 
     # Recombination rates
-    recRate_part = recRate[(recRate.Chromosome == row["Chromosome"]) & (recRate.Start >= row["Start"]) & (recRate.Start < row["End"])]
-    winRegions.loc[index,"WAvgRate"] = np.average (recRate_part["Rate"], weights = recRate_part["winSize"] )
-    winRegions.loc[index,"maxRate"] = max(recRate_part["Rate"])
-    
+    recRate_part = recRate[(recRate.Chromosome == row["Chromosome"]) & (recRate.Start < row["End"]) & (recRate.End > row["Start"])]
+    if len(recRate_part.index) > 0:
+        recRate_part.Start[recRate_part.Start == recRate_part.Start.min()] = row.Start
+        recRate_part.End[recRate_part.End == recRate_part.End.max()] = row.End
+        recRate_part["winSize"] = recRate_part.End - recRate_part.Start 
 
+        winRegions.loc[index,"WAvgRate"] = np.average (recRate_part["Rate"], weights = recRate_part["winSize"] )
+        winRegions.loc[index,"maxRate"] = max(recRate_part["Rate"])
+        winRegions.loc[index,"minRate"] = min(recRate_part["Rate"])
+    else:
+        winRegions.loc[index,"WAvgRate"] = math.nan
+        winRegions.loc[index,"maxRate"] = math.nan
+        winRegions.loc[index,"minRate"] = math.nan
 # %% 
 # Write result
 winRegions.to_csv( "{}/windowData.txt".format(outDir_files), index=False, sep = "\t")

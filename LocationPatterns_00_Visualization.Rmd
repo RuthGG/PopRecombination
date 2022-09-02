@@ -1,0 +1,208 @@
+```{r}
+load("analysisparams.Rdata")
+```
+
+
+```{r functionsPrepared}
+make1invPlot<-function(invName, map, invs){ 
+  x<-invs[invs$inv == invName,]
+  map_x<-map[(map$chrom == x$chrom) & (map$end >= x$sides_start) & (map$start <= x$sides_end),]
+
+  ggplot()+
+    geom_rect(data = map_x, aes(xmin = start, xmax = end, ymin = 0, ymax = rate), alpha = 0.2, color = "darkgray")+
+    geom_vline(xintercept = x$start, linetype ="dashed", alpha = 0.7)+geom_vline(xintercept = x$end, linetype ="dashed", alpha = 0.7)+
+    geom_vline(xintercept = x$sides_start,  alpha = 0.2)+geom_vline(xintercept = x$sides_end, alpha = 0.2)+
+    geom_text(data = x, aes(y = Inf, x = (start+end)/2, label = paste0(inv,"\n", size/1000, " kb") ), vjust = 1.5)
+}
+
+make1invReport<-function(invName, map, invs){ 
+  x<-invs[invs$inv == invName,]
+  map<-map[(map$chrom == x$chrom),]
+
+  # Windows_region - inclusive and exclusive
+  map_wi<-nrow(map[(map$end >= x$sides_start) & (map$start <= x$sides_end),])
+  map_we<-nrow(map[(map$start >= x$sides_start) & (map$end <= x$sides_end),])
+
+  # Windows_sides - inclusive and exclusive
+  map_si_left<-(map[(map$end >= x$sides_start) & (map$start <= x$start),])
+  map_se_left<-(map[ (map$start >= x$sides_start) & (map$end <= x$start),])
+
+  map_si_right<-(map[(map$end >= x$end) & (map$start <= x$sides_end),])
+  map_se_right<-(map[ (map$start >= x$end) & (map$end <= x$sides_end),])
+
+  map_si<-nrow(map_si_left) + nrow(map_si_right)
+  map_se<-nrow(map_se_left) + nrow(map_se_right)
+  
+  map_sp<- (sum(map_se_left$size) + sum(map_se_right$size))/ (x$size*2)
+  
+  # Windows_inversion - inclusive and exclusive
+  map_ii<-(map[ (map$end >= x$start) & (map$start <= x$end),])
+  map_ie<-(map[ (map$start >= x$start) & (map$end <= x$end),])
+  map_ip<-sum(map_ie$size) / x$size
+  map_ii<-nrow(map_ii)
+  map_ie<-nrow(map_ie)
+  
+  # All measurements in a df
+  info<-data.frame(inv = invName,total_wide = map_wi, total_strict = map_we, sides_wide = map_si, sides_strict = map_se, sides_strict_perc = map_sp, inv_wide = map_ii, inv_strict = map_ie, invs_strict_perc = map_ip )
+  return(info)
+}
+```
+
+
+```{r loadMap}
+# map<-read.table(file = "data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed", stringsAsFactors = F)
+ map<-read.table(file = "data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed", stringsAsFactors = F)
+colnames(map)<-c("chrom", "start", "end", "rate")
+map$size<-map$end - map$start
+```
+
+
+```{r loadInvs}
+invs<-data.frame()
+for (f in c("LFNHinvs", "HFNHinvs", "LFNAHRinvs", "HFNAHRinvs")){
+  part<- read.table(file = paste0(gatfiledir, "Segments/",f,".bed"), stringsAsFactors = F)
+  part$origin<-f
+  invs<-rbind(invs,part)
+}  
+
+# Now analyze  
+  colnames(invs)<-c("chrom", "start", "end", "inv", "origin")
+  invs$size<-invs$end - invs$start
+  invs$sides_start<-invs$start - invs$size
+  invs$sides_end<-invs$end  + invs$size
+```
+
+
+```{r Calculate}
+tab<-data.frame()
+  for(n in invs$inv){tab<-rbind(tab, make1invReport(n, map, invs))}
+  
+  invs<-merge(invs, tab)
+```
+
+
+```{r Visualize}
+ggplot(invs)+geom_point(aes(x = log10(size),  y = invs_strict_perc, color = origin))
+```
+
+
+```{r Calculate}
+table(invs$invs_strict_perc > 0.50 & invs$sides_strict_perc > 0.50)/nrow(invs)*100
+```
+
+
+```{r New invs}
+mkdir(paste0(gatfilesdir))
+```
+
+
+```{r Segments}
+dir.create("analysis/defTest_LocationPatterns/GATfiles/Segments_byInv/", showWarnings = F)
+for(l in c(1:nrow(invs))){
+  invpart<-invs[l,]
+  write.table(invpart[,c("chrom", "start", "end", "inv")], file =paste0("analysis/defTest_LocationPatterns/GATfiles/Segments_byInv/", invpart$inv, ".bed"), sep = "\t", col.names = F, row.names = F, quote = F )
+}
+
+```
+
+```{bash}
+SEGMENTS=$(ls analysis/defTest_LocationPatterns/GATfiles/Segments_byInv/ | sed "s/\.bed//g" )
+ISOCHORES="isochores_4breaks"
+CONDITIONS="avgBherer CEUSpence"
+
+# NO TOCAR ### ----#
+TODAY="defTest"
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+#  ### ----#
+
+
+for SEGMENT in $SEGMENTS;do
+for NAME in $CONDITIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments_byInv/${SEGMENT}.bed \
+     --annotations=$FILESDIR/Annotations/annotations_${NAME}.bed\
+     --annotations=$FILESDIR/Annotations/annotations_repeats.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${NAME}.bed \
+     --isochores=$FILESDIR/Isochores/${ISOCHORES}_${NAME}.bed \
+     --output-counts-pattern=$OUTDIR/counts/${SEGMENT}_${NAME}%s.tsv.gz\
+     --ignore-segment-tracks --num-samples=1000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+     
+  done
+done
+
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  
+  for FILE in $(ls $OUTDIR/tsv/* |grep ${NAME}.tsv); do
+
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+
+done
+
+
+```
+
+
+
+```{r GATplots}
+pacman::p_load(reshape2, ggplot2, gridExtra)
+
+GATplots<-function(desc, date, conditions){
+
+figscale <- 3
+
+for (condition in conditions){
+  gatResultMerged <- read.table(paste0("analysis/",date,"_LocationPatterns/GATresults/",desc,"/",condition,".tsv"), sep = "\t", header = T)
+  
+  # To add stars
+  gatResultMerged$pstars<-ifelse(gatResultMerged$pvalue <= 0.05, ifelse(gatResultMerged$pvalue <= 0.01, ifelse(gatResultMerged$pvalue<= 0.001, "***", "**"), "*" ),"")
+  gatResultMerged$qstars<-ifelse(gatResultMerged$qvalue <= 0.05, ifelse(gatResultMerged$qvalue <= 0.01, ifelse(gatResultMerged$qvalue<= 0.001, "***", "**"), "*" ),"")
+  
+  gatResultMerged$starpos<-ifelse(gatResultMerged$observed< gatResultMerged$CI95high,gatResultMerged$CI95high,gatResultMerged$observed )
+  
+  gatResultMerged<-merge(gatResultMerged,aggregate(starpos~ annotation, gatResultMerged, "max")  , by = "annotation", all.x = TRUE, suffixes = c(".simple", ".aggregated"))
+  
+  plot1<-ggplot(gatResultMerged, aes(x = track, y = l2fold))+ 
+          geom_bar( stat="identity")+
+          geom_text(aes(x = track, y = max(l2fold), label = pstars), color ="blue")+
+          geom_text(aes(x = track, y = max(l2fold)+1, label = qstars), color = "red")+
+          facet_wrap(annotation  ~ . )+
+          scale_colour_manual(name="Significance",values=c("pvalue", "qvalue"), palette = c("blue", "red"))+
+          ylab("log2( Fold change )")+
+          xlab("Segment tracks")+
+       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+  
+  plot2<- ggplot(gatResultMerged)+
+    geom_pointrange(aes(x = track, y = expected, ymin=CI95low, ymax = CI95high))+
+    geom_point(aes(x = track, y = observed) , shape = 4, size = 3)+
+            geom_text(aes(x = track, y = starpos.aggregated*1.1, label = pstars), color ="blue")+
+          geom_text(aes(x = track, y =  starpos.aggregated*1.2, label = qstars), color = "red")+
+     geom_text(aes(x = track, y =  starpos.aggregated*1.3, label = paste0("N=",track_nsegments )), color = "black")+
+    facet_wrap(annotation  ~ ., scales = "free")+
+     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ylab("Annotations overlappifng with segments\n(Nucleotide counts)")+
+          xlab("Segment tracks")+
+          ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+
+      ggsave(paste0("analysis/",date,"_LocationPatterns/GATresults/",desc,"/",condition,".png"),  grid.arrange(plot1, plot2), width=2480, height=3508, units = "px" , scale = 1.5)
+}
+}
+```
+
+
+
+```{r}
+desc<-""
+
+conditions <-c("CEUSpence")
+
+GATplots(desc, today, conditions)
+```

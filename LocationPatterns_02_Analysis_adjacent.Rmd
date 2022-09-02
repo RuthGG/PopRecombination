@@ -1,0 +1,350 @@
+```{r}
+load("analysisparams.Rdata")
+gatresdir<-"analysis/defTest_LocationPatterns/GATresults_doublesides/"
+```
+
+```{r GATplots}
+pacman::p_load(reshape2, ggplot2, gridExtra)
+
+GATplots<-function(desc, date, conditions){
+
+figscale <- 3
+
+for (condition in conditions){
+  gatResultMerged <- read.table(paste0("analysis/",date,"_LocationPatterns/GATresults_doublesides/",desc,"/",condition,".tsv"), sep = "\t", header = T)
+  
+  # To add stars
+  gatResultMerged$pstars<-ifelse(gatResultMerged$pvalue <= 0.05, ifelse(gatResultMerged$pvalue <= 0.01, ifelse(gatResultMerged$pvalue<= 0.001, "***", "**"), "*" ),"")
+  gatResultMerged$qstars<-ifelse(gatResultMerged$qvalue <= 0.05, ifelse(gatResultMerged$qvalue <= 0.01, ifelse(gatResultMerged$qvalue<= 0.001, "***", "**"), "*" ),"")
+  
+  gatResultMerged$starpos<-ifelse(gatResultMerged$observed< gatResultMerged$CI95high,gatResultMerged$CI95high,gatResultMerged$observed )
+  
+  gatResultMerged<-merge(gatResultMerged,aggregate(starpos~ annotation, gatResultMerged, "max")  , by = "annotation", all.x = TRUE, suffixes = c(".simple", ".aggregated"))
+  
+  plot1<-ggplot(gatResultMerged, aes(x = track, y = l2fold))+ 
+          geom_bar( stat="identity")+
+          geom_text(aes(x = track, y = max(l2fold), label = pstars), color ="blue")+
+          geom_text(aes(x = track, y = max(l2fold)+1, label = qstars), color = "red")+
+          facet_wrap(annotation  ~ . )+
+          scale_colour_manual(name="Significance",values=c("pvalue", "qvalue"), palette = c("blue", "red"))+
+          ylab("log2( Fold change )")+
+          xlab("Segment tracks")+
+       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+  
+  plot2<- ggplot(gatResultMerged)+
+    geom_pointrange(aes(x = track, y = expected, ymin=CI95low, ymax = CI95high))+
+    geom_point(aes(x = track, y = observed) , shape = 4, size = 3)+
+            geom_text(aes(x = track, y = starpos.aggregated*1.1, label = pstars), color ="blue")+
+          geom_text(aes(x = track, y =  starpos.aggregated*1.2, label = qstars), color = "red")+
+     geom_text(aes(x = track, y =  starpos.aggregated*1.3, label = paste0("N=",track_nsegments )), color = "black")+
+    facet_wrap(annotation  ~ ., scales = "free")+
+     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ylab("Annotations overlappifng with segments\n(Nucleotide counts)")+
+          xlab("Segment tracks")+
+          ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+
+      ggsave(paste0("analysis/",date,"_LocationPatterns/GATresults_doublesides/",desc,"/",condition,".png"),  grid.arrange(plot1, plot2), width=2480, height=3508, units = "px" , scale = 1.5)
+}
+}
+```
+
+
+### NH inversions
+```{bash}
+DESC="NHinvs_doublesides"
+SEGMENTS="HF${DESC} LF${DESC}"
+#ISOCHORES="isochores_4breaks"
+CONDITIONS="avgBherer CEUSpence femBherer"
+
+# NO TOCAR ### ----#
+TODAY="defTest"
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults_doublesides/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+#  ### ----#
+
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $CONDITIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --annotations=$FILESDIR/Annotations/annotations_${NAME}.bed\
+     --annotations=$FILESDIR/Annotations/annotations_repeats.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${NAME}.bed \
+     --output-counts-pattern=$OUTDIR/counts/${SEGMENT}_${NAME}%s.tsv.gz\
+     --num-samples=50000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+     
+  done
+done
+
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults_doublesides/${DESC}
+
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  
+  for FILE in $(ls $OUTDIR/tsv/* |grep ${NAME}.tsv); do
+
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+
+done
+
+```
+
+```{r}
+desc<-"NHinvs_doublesides"
+
+conditions <-c("avgBherer" ,"CEUSpence", "femBherer")
+
+GATplots(desc, today, conditions)
+```
+
+
+### NH inversions with isochores
+```{bash}
+DESC="NHinvs_doublesides"
+SEGMENTS="HF${DESC} LF${DESC}"
+DESC="${DESC}_iso"
+ISOCHORES="isochores_4breaks"
+CONDITIONS="avgBherer CEUSpence femBherer"
+
+# NO TOCAR ### ----#
+TODAY="defTest"
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults_doublesides/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+#  ### ----#
+
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $CONDITIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --annotations=$FILESDIR/Annotations/annotations_${NAME}.bed\
+     --annotations=$FILESDIR/Annotations/annotations_repeats.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${NAME}.bed \
+     --isochores=$FILESDIR/Isochores/${ISOCHORES}_${NAME}.bed \
+     --output-counts-pattern=$OUTDIR/counts/${SEGMENT}_${NAME}%s.tsv.gz\
+     --num-samples=50000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+     
+  done
+done
+
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults_doublesides/${DESC}
+
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  
+  for FILE in $(ls $OUTDIR/tsv/* |grep ${NAME}.tsv); do
+
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+
+done
+
+```
+
+```{r}
+desc<-"NHinvs_doublesides_iso"
+
+conditions <-c("avgBherer" ,"CEUSpence", "femBherer")
+
+GATplots(desc, today, conditions)
+```
+
+
+
+### NAHR inversions
+```{bash}
+DESC="NAHRinvs_doublesides"
+SEGMENTS="HF${DESC} LF${DESC}"
+#ISOCHORES="isochores_4breaks"
+CONDITIONS="avgBherer CEUSpence femBherer"
+
+# NO TOCAR ### ----#
+TODAY="defTest"
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults_doublesides/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+#  ### ----#
+
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $CONDITIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --annotations=$FILESDIR/Annotations/annotations_${NAME}.bed\
+     --annotations=$FILESDIR/Annotations/annotations_repeats.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${NAME}.bed \
+     --output-counts-pattern=$OUTDIR/counts/${SEGMENT}_${NAME}%s.tsv.gz\
+     --num-samples=50000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+     
+  done
+done
+
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults_doublesides/${DESC}
+
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  
+  for FILE in $(ls $OUTDIR/tsv/* |grep ${NAME}.tsv); do
+
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+
+done
+
+```
+
+```{r}
+desc<-"NAHRinvs_doublesides"
+
+conditions <-c("avgBherer" ,"CEUSpence", "femBherer")
+
+GATplots(desc, today, conditions)
+```
+
+
+### NAHR inversions with isochores
+```{bash}
+DESC="NAHRinvs_doublesides"
+SEGMENTS="HF${DESC} LF${DESC}"
+DESC="${DESC}_iso"
+ISOCHORES="isochores_4breaks"
+CONDITIONS="avgBherer CEUSpence femBherer"
+
+# NO TOCAR ### ----#
+TODAY="defTest"
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults_doublesides/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+#  ### ----#
+
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $CONDITIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --annotations=$FILESDIR/Annotations/annotations_${NAME}.bed\
+     --annotations=$FILESDIR/Annotations/annotations_repeats.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${NAME}.bed \
+     --isochores=$FILESDIR/Isochores/${ISOCHORES}_${NAME}.bed \
+     --output-counts-pattern=$OUTDIR/counts/${SEGMENT}_${NAME}%s.tsv.gz\
+     --num-samples=50000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+     
+  done
+done
+
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults_doublesides/${DESC}
+
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  
+  for FILE in $(ls $OUTDIR/tsv/* |grep ${NAME}.tsv); do
+
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+
+done
+
+```
+
+```{r}
+desc<-"NAHRinvs_doublesides_iso"
+
+conditions <-c("avgBherer" ,"CEUSpence", "femBherer")
+
+GATplots(desc, today, conditions)
+```
+
+
+
+### GAT main result
+
+
+```{r}
+names<-c( "NHinvs_doublesides", "NHinvs_doublesides_iso", "NAHRinvs_doublesides","NAHRinvs_doublesides_iso")
+conditions<-c("avgBherer", "femBherer", "CEUSpence")
+
+tab<-data.frame()
+
+
+for (n in names){for (feature in conditions){
+  subtab<-read.table(paste0("analysis/",today,"_LocationPatterns/GATresults_doublesides/",n, "/", feature, ".tsv"), header = T)
+  subtab$feature<-feature
+  subtab$type<-n
+  tab<-rbind(tab,subtab)
+}}
+
+tab$freq<-substr(tab$track, 0, 2)
+# tab$type<-gsub("HF|LF|invs", "", tab$track)
+  
+tab$qstars<-ifelse(tab$qvalue <= 0.05, ifelse(tab$qvalue <= 0.01, ifelse(tab$qvalue<= 0.001, "***", "**"), "*" ),"")
+tab$pstars<-ifelse(tab$pvalue <= 0.05, ifelse(tab$pvalue <= 0.01, ifelse(tab$pvalue<= 0.001, "***", "**"), "*" ),"")  
+tab$pstars<-ifelse(tab$qvalue <= 0.05, tab$pstars, "")
+# levels(tab$type)<-c("NAHR", "NH")
+# tab$type<-ordered(tab$type, levels = levelNames)
+tab$alphaval<-as.numeric(as.character(factor(tab$pstars, levels =c("", "*", "**", "***"), labels =c( 0.2, 1, 1, 1 ))))
+tab$Frequency<-ifelse(tab$freq == "HF", "High", "Low")
+levels(tab$annotation)<-c("Rep.", "<0.1%", "<1%", "<10%", ">90%", ">99%", ">99.9%")
+tab$annotype<-tab$annotation
+levels(tab$annotype)<-c("Rep.", "Cold", "Cold", "Cold", "Hot", "Hot", "Hot")
+
+(
+  c<-ggplot(tab[tab$freq %in% c("HF", "LF"),])+geom_bar(aes(y= l2fold , x  = annotation , fill = Frequency, alpha = alphaval), stat = "identity", position = "dodge")+
+  geom_text(aes(x = annotation, y = 5, label = pstars, group = freq, color = Frequency), position = position_dodge(width = .9), angle = 90)+
+  xlab("")+ylab("Fold change")+
+  facet_grid(feature~type)+
+   scale_alpha_identity()
+) 
+
+
+samplesize<-unique(tab[,c("type", "feature", "Frequency", "track_nsegments")])
+samplesize<-reshape(samplesize, direction = "wide", idvar = c("type", "feature"), timevar = "Frequency")
+samplesize$message<-paste0("HF N=", samplesize$track_nsegments.High, "; LF N=", samplesize$track_nsegments.Low)
+(
+d<-ggplot(tab[tab$freq %in% c("HF", "LF"),])+
+  geom_pointrange(aes(x = annotation, y = expected, ymin=CI95low, ymax = CI95high, color = Frequency , group = Frequency), position = position_dodge(width = 1), size = 0.2)+
+  geom_point(aes(x = annotation, y = observed, group = Frequency, shape = factor(alphaval,labels = c("No-sig", "Sig"))),  position = position_dodge(width = 1))+
+  facet_grid(feature~type)+
+  scale_shape_manual("Significance",values = c(4,1))+
+  # geom_text(aes(x = annotation, y = 4e+06, label = pstars), color ="blue")+
+  # geom_text(aes(x = annotation, y =  5, label = qstars), color = "red")+
+  geom_text(data = samplesize, aes(x = Inf, y =  Inf, label =message ), color = "black",  position = position_dodge(width = 1), vjust = 1.5, hjust = 1.1, size =3)+
+  xlab("")+ylab("Overlap in bp")+
+  facet_grid(feature~type, scales = "free")+
+   scale_alpha_identity()
+)
+
+ggsave( paste0("analysis/",today,"_LocationPatterns/GATresults_doublesides/GeneralResult.png"), ggarrange(c, d, ncol=1), width=2480, height=3508, units = "px" , scale = 1)
+
+# ggplot(gatResultMerged)+
+#     geom_pointrange(aes(x = track, y = expected, ymin=CI95low, ymax = CI95high))+
+#     geom_point(aes(x = track, y = observed) , shape = 4, size = 3)+
+#             geom_text(aes(x = track, y = starpos.aggregated*1.1, label = pstars), color ="blue")+
+#           geom_text(aes(x = track, y =  starpos.aggregated*1.2, label = qstars), color = "red")+
+#      geom_text(aes(x = track, y =  starpos.aggregated*1.3, label = paste0("N=",track_nsegments )), color = "black")+
+#     facet_wrap(annotation  ~ ., scales = "free")+
+#      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+#             ylab("Annotations overlappifng with segments\n(Nucleotide counts)")+
+#           xlab("Segment tracks")+
+#           ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+
+```
