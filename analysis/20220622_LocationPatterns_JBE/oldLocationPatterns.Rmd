@@ -1,0 +1,1873 @@
+
+<!-- #------------- -->
+
+### Segments
+
+
+
+
+
+```{r makeSegments}
+
+# Add libraries
+pacman::p_load(vcfR, ggplot2)
+
+# Setup 
+dir.create(paste0(gatfiledir,"/Segments"))
+
+# Read  VCF info
+vcf<-read.vcfR("data/InversionGenotypes_processed/allgenotypes.vcf")
+
+vcfInfo<-vcfR2tidy(vcf, info_only = TRUE)$fix
+
+# Recalculate frquency for del vars
+delinvs<-sub("Del", "",grep("Del", vcfInfo$ID, value =  T) )
+delinvs<-delinvs[delinvs != "HsInv0030"]
+
+for (var in delinvs) {
+  
+vartable<-vcfInfo[vcfInfo$ID == var, c("AC_EUR","AN_EUR")]
+deltable<-vcfInfo[vcfInfo$ID == paste0(var, "Del"), c("AC_EUR","AN_EUR")]
+
+AN_total<-(as.numeric(vartable$AN_EUR) - as.numeric(vartable$AC_EUR)) + as.numeric(vartable$AC_EUR) + as.numeric(deltable$AC_EUR)
+
+vcfInfo[vcfInfo$ID == var, "AF_EUR"]<-as.character(as.numeric(vartable$AC_EUR)/AN_total)
+}
+
+vcfInfo$AF_EUR<-as.numeric(vcfInfo$AF_EUR)
+
+# SELECT A FREQUENCY IN THE SETUP
+# Comparison of selectefd frequency with distribution
+
+ggplot(vcfInfo, aes(x = AF_EUR))+geom_histogram()+
+  geom_vline(xintercept = summary(vcfInfo$AF_EUR)[3], color = "green")+
+  geom_vline(xintercept=summary(vcfInfo$AF_EUR)[4], color = "blue")+
+  geom_vline(xintercept = freq)
+
+# Chromosome format
+vcfInfo$CHROM<-paste0("chr",vcfInfo$CHROM)
+
+# Classification by high-low frequency
+lowfreq<-vcfInfo[vcfInfo$AF_EUR < freq,c("CHROM", "POS", "END", "ID")]
+hifreq<-vcfInfo[vcfInfo$AF_EUR >= freq,c("CHROM", "POS", "END", "ID")]
+
+write.table(lowfreq,paste0(gatfiledir,"/Segments/LFinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(hifreq, paste0(gatfiledir,"/Segments/HFinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+# write.table(hifreq[hifreq$ID != "HsInv0501",], paste0(gatfiledir,"/Segments/HFno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# Classification by type
+NH<-vcfInfo[ vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")]
+NAHR<-vcfInfo[ vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")]
+
+write.table(NH,paste0(gatfiledir,"/Segments/NHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR, paste0(gatfiledir,"/Segments/NAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+# write.table(NAHR[NAHR$ID != "HsInv0501" ,], paste0(gatfiledir,"/Segments/NAHRno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# Classification by freq AND type
+LFNH<-vcfInfo[vcfInfo$AF_EUR < freq & vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")]
+LFNAHR<-vcfInfo[vcfInfo$AF_EUR < freq & vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")]
+HFNH<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")]
+HFNAHR<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")]
+# HFNAHRno<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NAHR" & vcfInfo$ID != "HsInv0501",c("CHROM", "POS", "END", "ID")]
+
+write.table(LFNH, paste0(gatfiledir,"/Segments/LFNHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(LFNAHR, paste0(gatfiledir,"/Segments/LFNAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(HFNH, paste0(gatfiledir,"/Segments/HFNHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(HFNAHR, paste0(gatfiledir,"/Segments/HFNAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+# write.table(HFNAHRno, paste0(gatfiledir,"/Segments/HFNAHRno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# All invs
+ALL<-vcfInfo[,c("CHROM", "POS", "END", "ID")]
+# ALLno<-vcfInfo[vcfInfo$ID != "HsInv0501",c("CHROM", "POS", "END", "ID")]
+
+write.table(ALL, paste0(gatfiledir,"/Segments/invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+# write.table(ALLno, paste0(gatfiledir,"/Segments/no501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+```
+
+### Annotations
+
+```{bash makeAnnotarions}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+# ANALYSIS WIDOWS: 5 fixed windows, and crossover zones with 0 persistence and 40k simulations (sample size similar to Bell et al.2020)
+TODAY=20220715
+# Spence CEU map
+$ENVPY code/python/recMapAnnotation.py -l data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/${TODAY}_LocationPatterns/ -d "CEUSpence"
+
+# Bherer average
+$ENVPY code/python/recMapAnnotation.py -l data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed  -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/${TODAY}_LocationPatterns/ -d "avgBherer"
+
+# Bherer female
+$ENVPY code/python/recMapAnnotation.py -l data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/${TODAY}LocationPatterns/ -d "femBherer"
+
+
+```
+
+### Isochores
+
+```{bash makeIsochores}
+ENVPY="/home/rgomez/anaconda3/bin/python"
+
+$ENVPY code/python/makeIsochores.py -f data/genomicSuperDups_coords.bed -t 0.09  -o "analysis/$(date +'%Y%m%d')_LocationPatterns" -d genomicSuperDups
+
+```
+
+### Workspace
+
+
+```{bash makeWorkspace}
+TODAY=$(date +'%Y%m%d')
+USE=20220513
+
+mkdir -p "analysis/$(date +'%Y%m%d')_LocationPatterns/GATfiles/Workspace/"
+
+grep -v "cen" "analysis/${USE}_LocationPatterns/divideChromosomes/CEUSpence_COzones_0.1_800000/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/$(date +'%Y%m%d')_LocationPatterns/GATfiles/Workspace/workspace_CEUSpence.bed"
+
+grep -v "cen" "analysis/${USE}_LocationPatterns/divideChromosomes/avgBherer_COzones_0.1_800000/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/$(date +'%Y%m%d')_LocationPatterns/GATfiles/Workspace/workspace_avgBherer.bed"
+
+grep -v "cen" "analysis/${USE}_LocationPatterns/divideChromosomes/femBherer_COzones_0.1_800000/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/$(date +'%Y%m%d')_LocationPatterns/GATfiles/Workspace/workspace_femBherer.bed"
+
+
+```
+
+
+## GAT run
+
+For generation methods
+
+```{bash}
+
+DESC="DefResults"
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+CONDITIONS="avgBherer repeats"
+SEGMENTS="NHinvs NAHRnoOutinvs HFNHinvs LFNHinvs LFNAHRnoOutinvs HFNAHRnoOutinvs"
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+
+for SEGMENT in $SEGMENTS; do
+  #SEGNAME=$(echo $SEGMENT | rev | cut -d'/' -f 1 | rev | sed "s/\.bed//g")
+  SEGNAME=$SEGMENT
+  for NAME in $CONDITIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --isochores=$FILESDIR/Isochores/Isochores_25Mwin_4cat.bed \
+     --annotations=$FILESDIR/Annotations/annotations_${NAME}.bed\
+     --workspace=$FILESDIR/Workspace/workspace_avgBherer.bed \
+     --num-samples=5000 --log=$OUTDIR/log/${SEGNAME}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGNAME}_${NAME}.tsv
+
+  done
+done
+
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+```
+
+I also want to test for repeat enrichment to see if isochores are working
+
+```{bash}
+
+DESC="Isochores_calculated"
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+CONDITIONS="avgBherer"
+SEGMENTS="NHinvs NAHRnoOutinvs"
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+
+for SEGMENT in $SEGMENTS; do
+  SEGNAME=$SEGMENT
+  for NAME in $CONDITIONS; do
+ 
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --isochores=$FILESDIR/Isochores/isochores_calculated.bed \
+     --annotations=$FILESDIR/Annotations/genomicSuperDups_coords.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${NAME}.bed \
+     --num-samples=1000 --log=$OUTDIR/log/${SEGNAME}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGNAME}_${NAME}.tsv
+
+  done
+done
+# <!--     --isochores=$FILESDIR/Isochores/isochores_calculated.bed \  -->
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+## GAT results - repeats
+
+
+```{bash}
+DESC="WorkspaceHigh0.1_noX"
+TODAY=$(date +'%Y%m%d')
+USE=20220620
+CONDITIONS="CEUSpence avgBherer femBherer"
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+
+```{r}
+pacman::p_load(reshape2, ggplot2, gridExtra)
+desc<-"Isochores_calculated"
+date<-"20220622"
+# conditions <-c("avgBherer", "repeats")
+conditions <-c("avgBherer")
+
+figscale <- 3
+
+for (condition in conditions){
+  gatResultMerged <- read.table(paste0("analysis/",date,"_LocationPatterns/GATresults/",desc,"/",condition,".tsv"), sep = "\t", header = T)
+  
+  # To add stars
+  gatResultMerged$pstars<-ifelse(gatResultMerged$pvalue <= 0.05, ifelse(gatResultMerged$pvalue <= 0.01, ifelse(gatResultMerged$pvalue<= 0.001, "***", "**"), "*" ),"")
+  gatResultMerged$qstars<-ifelse(gatResultMerged$qvalue <= 0.05, ifelse(gatResultMerged$qvalue <= 0.01, ifelse(gatResultMerged$qvalue<= 0.001, "***", "**"), "*" ),"")
+  
+  gatResultMerged$starpos<-ifelse(gatResultMerged$observed< gatResultMerged$CI95high,gatResultMerged$CI95high,gatResultMerged$observed )
+  
+  gatResultMerged<-merge(gatResultMerged,aggregate(starpos~ annotation, gatResultMerged, "max")  , by = "annotation", all.x = TRUE, suffixes = c(".simple", ".aggregated"))
+  
+  plot1<-ggplot(gatResultMerged, aes(x = track, y = l2fold))+ 
+          geom_bar( stat="identity")+
+          geom_text(aes(x = track, y = max(l2fold), label = pstars), color ="blue")+
+          geom_text(aes(x = track, y = max(l2fold)+1, label = qstars), color = "red")+
+          facet_wrap(annotation  ~ . )+
+          scale_colour_manual(name="Significance",values=c("pvalue", "qvalue"), palette = c("blue", "red"))+
+          ylab("log2( Fold change )")+
+          xlab("Segment tracks")+
+       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+  
+  plot2<- ggplot(gatResultMerged)+
+    geom_pointrange(aes(x = track, y = expected, ymin=CI95low, ymax = CI95high))+
+    geom_point(aes(x = track, y = observed) , shape = 4, size = 3)+
+            geom_text(aes(x = track, y = starpos.aggregated*1.1, label = pstars), color ="blue")+
+          geom_text(aes(x = track, y =  starpos.aggregated*1.2, label = qstars), color = "red")+
+    facet_wrap(annotation  ~ ., scales = "free")+
+     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ylab("Annotations overlappifng with segments\n(Nucleotide counts)")+
+          xlab("Segment tracks")+
+          ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+
+      ggsave(paste0("analysis/",date,"_LocationPatterns/GATresults/",desc,"/",condition,".png"),  grid.arrange(plot1, plot2), width=2480, height=3508, units = "px" , scale = 1.5)
+}
+```
+
+
+## GAT results
+
+
+```{bash}
+
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+CONDITIONS="CEUSpence avgBherer femBherer"
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+
+```{r}
+pacman::p_load(reshape2, ggplot2, gridExtra)
+
+date<-"20220517"
+conditions <-c("avgBherer", "femBherer", "CEUSpence")
+figscale <- 3
+
+for (condition in conditions){
+  gatResultMerged <- read.table(paste0("analysis/",date,"_LocationPatterns/GATresults/",condition,".tsv"), sep = "\t", header = T)
+  
+  # To add stars
+  gatResultMerged$pstars<-ifelse(gatResultMerged$pvalue <= 0.05, ifelse(gatResultMerged$pvalue <= 0.01, ifelse(gatResultMerged$pvalue<= 0.001, "***", "**"), "*" ),"")
+  gatResultMerged$qstars<-ifelse(gatResultMerged$qvalue <= 0.05, ifelse(gatResultMerged$qvalue <= 0.01, ifelse(gatResultMerged$qvalue<= 0.001, "***", "**"), "*" ),"")
+  
+  gatResultMerged$starpos<-ifelse(gatResultMerged$observed< gatResultMerged$CI95high,gatResultMerged$CI95high,gatResultMerged$observed )
+  
+  gatResultMerged<-merge(gatResultMerged,aggregate(starpos~ annotation, gatResultMerged, "max")  , by = "annotation", all.x = TRUE, suffixes = c(".simple", ".aggregated"))
+  
+  plot1<-ggplot(gatResultMerged, aes(x = track, y = l2fold))+ 
+          geom_bar( stat="identity")+
+          geom_text(aes(x = track, y = max(l2fold), label = pstars), color ="blue")+
+          geom_text(aes(x = track, y = max(l2fold)+1, label = qstars), color = "red")+
+          facet_wrap(annotation  ~ . )+
+          scale_colour_manual(name="Significance",values=c("pvalue", "qvalue"), palette = c("blue", "red"))+
+          ylab("log2( Fold change )")+
+          xlab("Segment tracks")+
+       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+  
+  plot2<- ggplot(gatResultMerged)+
+    geom_pointrange(aes(x = track, y = expected, ymin=CI95low, ymax = CI95high))+
+    geom_point(aes(x = track, y = observed) , shape = 4, size = 3)+
+            geom_text(aes(x = track, y = starpos.aggregated*1.1, label = pstars), color ="blue")+
+          geom_text(aes(x = track, y =  starpos.aggregated*1.2, label = qstars), color = "red")+
+    facet_wrap(annotation  ~ ., scales = "free")+
+     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ylab("Annotations overlappifng with segments\n(Nucleotide counts)")+
+          xlab("Segment tracks")+
+          ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+
+      ggsave(paste0("analysis/",date,"_LocationPatterns/GATresults/",condition,".png"),  grid.arrange(plot1, plot2), width=2480, height=3508, units = "px" , scale = 1.5)
+}
+```
+
+# Analysis: are invesions in regions with higher repeats?
+
+```{r}
+library(ggplot2)
+rep<-read.table("data/genomicSuperDups_coords.bed", header = T)
+inv<-read.table("analysis/20220622_LocationPatterns/GATfiles/Segments/NAHRinvs.bed", header = F)
+invNH<-read.table("analysis/20220622_LocationPatterns/GATfiles/Segments/NHinvs.bed", header = F)
+invNAHR<-read.table("analysis/20220622_LocationPatterns/GATfiles/Segments/NAHRinvs.bed", header = F)
+win<-read.table("analysis/20220622_LocationPatterns/GATfiles/Isochores/genomicSuperDups_COzones_0.09/windows.txt")
+colnames(win)<-c("chrom", "start", "end", "type")
+
+colnames(inv)<-colnames(invNH)<-colnames(invNAHR)<-colnames(rep)
+
+rep$center<-(rep$chromStart+rep$chromEnd)/2
+
+chromnames<- paste0("chr", c(0:22))
+ggplot()+geom_density(data = rep[rep$chrom %in% chromnames,], aes(center))+
+  geom_rect(data =win, aes(xmin = start, xmax = end, fill = type, ymin = 0, ymax = Inf) , alpha = 0.5)+
+  facet_wrap(chrom ~ ., scales = "free_x")+
+  geom_vline(data = invNH, aes(xintercept = (chromStart + chromEnd)/2 ), color = "blue", alpha = 0.5)+
+  geom_vline(data = invNAHR, aes(xintercept = (chromStart + chromEnd)/2 ), color = "red", alpha = 0.5)
+
+
+
+
+inv$density<-
+  apply(inv, 1, function(x){
+       invStart <- as.numeric(x["chromStart"])
+     invEnd<- as.numeric(x["chromEnd"])
+  d<-density(rep[as.character(rep$chrom) == x["chrom"],"center"])
+  val<-mean(approx(d$x, d$y, xout = c(invStart:invEnd))$y)
+  val
+} )
+
+ 
+ inv$nucOverlap<-
+   apply(inv, 1, function(x){
+     invStart <- as.numeric(x["chromStart"])
+     invEnd<- as.numeric(x["chromEnd"])
+     repC<-rep[as.character(rep$chrom) == x["chrom"],]
+     repO<-unique(repC[( (  repC$chromEnd %in% c(invStart:invEnd)  )  | 
+             (  repC$chromStart %in% c(invStart:invEnd) ) | 
+             (  repC$chromStart < invStart&  repC$chromEnd > invEnd )
+            ), ])
+     repO[repO$chromStart < invStart , "chromStart"]<-invStart
+     repO[repO$chromEnd > invEnd , "chromEnd"]<-invEnd
+     
+     repO$size<-repO$chromEnd - repO$chromStart
+     sum(repO$size)
+   })
+ 
+ invNAHR<-inv
+# ---
+ rep<-read.table("data/genomicSuperDups_coords.bed", header = T)
+inv<-read.table("analysis/20220622_LocationPatterns/GATfiles/Segments/NHinvs.bed", header = F)
+
+colnames(inv)<-colnames(rep)
+
+rep$center<-(rep$chromStart+rep$chromEnd)/2
+
+chromnames<- paste0("chr", c(0:22))
+ggplot()+geom_density(data = rep[rep$chrom %in% chromnames,], aes(center))+
+  facet_wrap(chrom ~ ., scales = "free_x")+
+  geom_vline(data = inv, aes(xintercept = (chromStart + chromEnd)/2 ), color = "red", alpha = 0.5)
+
+
+density(rep[rep$chrom %in% chromnames,"center"])
+
+ inv$density<-
+  
+  apply(inv, 1, function(x){
+       invStart <- as.numeric(x["chromStart"])
+     invEnd<- as.numeric(x["chromEnd"])
+  d<-density(rep[as.character(rep$chrom) == x["chrom"],"center"])
+  val<-mean(approx(d$x, d$y, xout = c(invStart:invEnd))$y)
+  val
+} )
+
+  inv$nucOverlap<-
+   apply(inv, 1, function(x){
+     invStart <- as.numeric(x["chromStart"])
+     invEnd<- as.numeric(x["chromEnd"])
+     repC<-rep[as.character(rep$chrom) == x["chrom"],]
+     repO<-unique(repC[( (  repC$chromEnd %in% c(invStart:invEnd)  )  | 
+             (  repC$chromStart %in% c(invStart:invEnd) ) | 
+             (  repC$chromStart < invStart&  repC$chromEnd > invEnd )
+            ), ])
+     repO[repO$chromStart < invStart , "chromStart"]<-invStart
+     repO[repO$chromEnd > invEnd , "chromEnd"]<-invEnd
+     
+     repO$size<-repO$chromEnd - repO$chromStart
+     sum(repO$size)
+   })
+ 
+invNH<-inv
+
+# --
+
+invNAHR$Type<-"NAHR"
+invNH$Type<-"NH"
+inv<-rbind(invNAHR, invNH)
+# inv<-inv[!(inv[,4] %in% c("HsInv0501", "HsInv382", "HsInv786", "HsInv1110", "HsInv0573")),]
+ggplot(inv)+geom_boxplot(aes(x = Type, y = density))
+
+ggplot(inv)+geom_boxplot(aes(x = Type, y = log10(nucOverlap)))
+
+ggplot(inv)+geom_boxplot(aes(x = Type, y = (nucOverlap/(chromEnd - chromStart)  )))
+
+pacman::p_load("Hmisc", "reshape2")
+
+summary((nucOverlap ) ~ Type, data = inv, fun=mean)
+
+hist(log10(inv$nucOverlap))
+```
+
+
+```{r}
+#OK let's try to find out regions with similar repeat density
+
+workspace<-win<-read.table("analysis/20220622_LocationPatterns/GATfiles/Workspace/workspace_avgBherer.bed")
+colnames(workspace)<-c("chrom", "start", "end")
+
+# Which is the ideal win size? - 15k
+# prob<-invNAHR[invNAHR$nucOverlap > 50000, ]
+# min(prob$chromEnd - prob$chromStart)
+
+# I divide the genome in 15k windows
+size <-  2.5 * 1000000
+genoWindows<-do.call("rbind", apply(workspace, 1, function(x){
+  v<-seq(x["start"], as.numeric(x["end"])+size, size)
+  starts<-v[1:length(v)-1]
+  ends<-v[2:length(v)]
+  data.frame(x["chrom"], starts, ends)
+}))
+
+colnames(genoWindows)<-colnames(workspace)
+
+# Now I calculate the repeat nucleotide overlap for each of them
+genoWindows$nucOverlap<-   apply(genoWindows, 1, function(x){
+     invStart <- as.numeric(x["start"])
+     invEnd<- as.numeric(x["end"])
+     repC<-rep[as.character(rep$chrom) == x["chrom"],]
+     repO<-unique(repC[( (  repC$chromEnd %in% c(invStart:invEnd)  )  | 
+             (  repC$chromStart %in% c(invStart:invEnd) ) | 
+             (  repC$chromStart < invStart&  repC$chromEnd > invEnd )
+            ), ])
+     repO[repO$chromStart < invStart , "chromStart"]<-invStart
+     repO[repO$chromEnd > invEnd , "chromEnd"]<-invEnd
+     
+     repO$size<-repO$chromEnd - repO$chromStart
+     sum(repO$size)
+   })
+
+#See
+   
+ggplot()+
+  # geom_point(data = genoWindows[genoWindows$nucOverlap > 2272,], aes(x = (end+start)/2, y = nucOverlap) , size = 1, alpha = 0.2)+
+  geom_rect(data = genoWindows, aes(xmin = start, xmax = end, ymin = 0 , ymax = nucOverlap) ,  alpha = 0.2)+
+  geom_hline(yintercept = 2e+06)+
+  # geom_rect(data =isochores_newcomplete, aes(xmin = regstart, xmax = regend, fill = type, ymin = 0, ymax = Inf) , alpha = 0.5)+
+  facet_wrap(chrom ~ ., scales = "free_x")+
+   geom_vline(data = inv, aes(xintercept = (chromStart + chromEnd)/2 , color = problematic, linetype = Type))+
+   geom_rect(data = inv, aes(xmin = chromStart, xmax = chromEnd, ymin = 0 , ymax = Inf, fill = problematic), alpha = 0.2)+
+  ggtitle("test")
+```
+
+
+```{r}
+# I put a threshold and calculate high repeat regions
+winSize<-2.5*1000000
+genoWindows$nucDensity <- genoWindows$nucOverlap / winSize
+
+
+
+threshold1<-0.05 # test 06
+# threshold<-7e+06
+# inv$problematic<-ifelse(inv$nucOverlap >30000& inv$nucOverlap<150000, TRUE, FALSE )
+
+genoWindows$isochore<-ifelse(genoWindows$nucDensity >= threshold1, "High", "Low")
+genoWindows[genoWindows$nucDensity >= 0.05, "isochore"]<- "High005"
+# genoWindows[genoWindows$nucDensity >= 0.25, "isochore"]<- "High025"
+genoWindows[genoWindows$nucDensity >= 0.8, "isochore"]<- "High08"
+genoWindows[genoWindows$nucDensity >= 2.8, "isochore"]<- "High28"
+  
+totest<-inv[inv$Type=="NAHR" &( inv$nucOverlap <30000), ]
+
+
+ggplot()+
+  # geom_point(data = genoWindows[genoWindows$nucOverlap > 2272,], aes(x = (end+start)/2, y = nucOverlap) , size = 1, alpha = 0.2)+
+  geom_rect(data = genoWindows, aes(xmin = start, xmax = end, ymin = 0 , ymax = nucOverlap) ,  alpha = 0.5)+
+  geom_rect(data = genoWindows, aes(xmin = start, xmax = end, ymin = 0 , ymax = Inf, fill = isochore) ,  alpha = 0.2)+
+  geom_hline(yintercept = threshold1, alpha= 0.5)+
+  # geom_rect(data =isochores_newcomplete, aes(xmin = regstart, xmax = regend, fill = type, ymin = 0, ymax = Inf) , alpha = 0.5)+
+  facet_grid(chrom ~ ., scales = "free_x")+
+   geom_vline(data = inv, aes(xintercept = (chromStart + chromEnd)/2 , color = problematic, linetype = Type))+
+  # geom_vline(data = totest, aes(xintercept = (chromStart + chromEnd)/2 , linetype = Type))+
+   # geom_rect(data = inv, aes(xmin = chromStart, xmax = chromEnd, ymin = 0 , ymax = Inf, fill = problematic), alpha = 0.2)+
+  ggtitle("test")
+
+
+write.table(genoWindows[,c("chrom", "start", "end", "isochore")], paste0(gatfiledir,"/Isochores/isochores_calculated.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(totest[,c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/NAHRnoOutinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+hflist<-read.table("analysis/20220622_LocationPatterns/GATfiles/Segments/HFNAHRinvs.bed")
+write.table(totest[totest[,4] %in% hflist$V4 ,c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/HFNAHRnoOutinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(totest[!(totest[,4] %in% hflist$V4),c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/LFNAHRnoOutinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+```
+
+
+```{r}
+# What is hapending in the problemanics?
+theps<-inv[ inv$chrom != "chrX" & inv$chrom != "chrY",]
+
+theps<-cbind(theps, do.call("rbind",apply(theps, 1, function(x){
+  point<-(as.numeric(x["chromStart"])+as.numeric(x["chromEnd"]))/2
+  df<-genoWindows[as.character(genoWindows$chrom) == x["chrom"] &  genoWindows$start <= point & genoWindows$end >= point ,c("nucDensity", "isochore" )]
+  # ifelse(nrow(df)>0, df, data.frame(nucOverlap = NA, isochore= NA))
+})))
+
+
+b<-ggplot(theps,aes(x = repdensity, y  =nucDensity))+geom_point(aes( color = isochore, shape = problematic))+geom_smooth(method = lm)
+a
+b
+```
+
+
+```{r newIsochores}
+inv$repdensity<-inv$nucOverlap / (inv$chromEnd - inv$chromStart)
+
+invNAHR$repdensity<-invNAHR$nucOverlap / (invNAHR$chromEnd - invNAHR$chromStart)
+invNH$repdensity<-invNH$nucOverlap / (invNH$chromEnd - invNH$chromStart)
+
+# highreg<-inv[inv$repdensity > mean(invNH$repdensity),] # test 1
+# highreg<-invNAHR #test2
+# highreg<-invNAHR[invNAHR[,4] != "HsInv0501",] #test3
+# highreg<-invNAHR[!(invNAHR[,4] %in% c("HsInv0501", "HsInv382", "HsInv786", "HsInv1110", "HsInv0573")) & invNAHR$repdensity > mean(invNH$repdensity),] #test4
+highreg<-invNAHR[(invNAHR[,4] %in% c("HsInv0486", "HsInv0374", "HsInv1117")),] #test5
+# highreg<-inv[inv$nucOverlap > 50000,]
+
+highreg$regstart<-highreg$chromStart - 25000
+highreg$regend<-highreg$chromStart + 25000
+
+highreg[highreg$regstart <0, "regstart"] <- 0
+
+isochore_new<-unique(highreg[order(highreg$regstart),c("chrom", "regstart", "regend")])
+isochore_new$type<-"High"
+
+isochores_newcomplete<-data.frame()
+for(c in unique(win$chrom)){
+  cstart<-min(win[win$chrom == c, "start"])
+  cend<-max(win[win$chrom == c, "end"])
+
+  subs<-isochore_new[isochore_new$chrom == c,]
+  
+  sts<-subs$regstart
+  eds<-subs$regend
+  if (nrow(subs)>1){
+    
+    for( i in c(2:length(sts))){
+      if(sts[i]<eds[i-1]){
+        sts[i]<-NA
+        eds[i-1]<-NA
+        } 
+    }
+  }
+  
+    pos<-unique(c(cstart,cend,sts, eds))
+    pos<-pos[!is.na(pos) & pos <= cend]
+    pos<-pos[order(pos)]
+    subs<-data.frame(chrom=c, regstart=pos[1:length(pos)-1], regend=pos[2:length(pos)], type = "Low", stringsAsFactors = F)
+    subs[subs$regstart %in% sts, "type"]<-"High" 
+    
+    isochores_newcomplete<-rbind(isochores_newcomplete, subs)
+
+  }
+  
+
+ggplot()+geom_density(data = rep[rep$chrom %in% chromnames,], aes(center))+
+  geom_rect(data =isochores_newcomplete, aes(xmin = regstart, xmax = regend, fill = type, ymin = 0, ymax = Inf) , alpha = 0.5)+
+  facet_wrap(chrom ~ ., scales = "free_x")+
+  geom_vline(data = invNH, aes(xintercept = (chromStart + chromEnd)/2 ), color = "blue", alpha = 0.5)+
+  geom_vline(data = invNAHR, aes(xintercept = (chromStart + chromEnd)/2 ), color = "red", alpha = 0.5)
+
+
+write.table(isochores_newcomplete, paste0(gatfiledir,"/Isochores/isochores_calculated.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+```
+
+
+```{r finescaleSetup}
+
+# Setup
+today <- 20220621
+gatfiledir<-paste0("analysis/",today,"_LocationPatterns/GATfiles/" )
+
+# Frequency threshold
+freq <- 0.2
+
+# Directory
+dir.create(gatfiledir, recursive = T)
+```
+
+```{r}
+
+workspace<-data.frame(chrom = "chrA", start = 0, end = 1000)
+isochores<-data.frame(chrom = "chrA", start = c(0, 500), end = c(500, 1000), type = c("High", "Low"))
+annotations<-data.frame(chrom = "chrA", start  = c(seq(5, 500, 25), seq(505, 1000, 50)) )
+annotations$end<-annotations$start + 5
+segments<-data.frame(chrom = "chrA", start = seq(1,1000, 100))
+segments$end<-segments$start + 50
+segments$type<-ifelse(segments$start<500, "NAHR", "NH")
+
+
+write.table(workspace, paste0(gatfiledir,"/Workspace/workspace_sim.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(isochores, paste0(gatfiledir,"/Isochores/isochores_sim.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(annotations, paste0(gatfiledir,"/Annotations/annotations_sim.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(segments[,c("chrom", "start", "end")], paste0(gatfiledir,"/Segments/segments_sim.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(segments[segments$type == "NAHR",], paste0(gatfiledir,"/Segments/segmentsNAHR_sim.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(segments[segments$type == "NH",], paste0(gatfiledir,"/Segments/segmentsNH_sim.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+
+
+ggplot()+geom_rect(data = annotations,aes(xmin = start, xmax = end, ymin = -1, ymax =1 ))+
+  geom_rect(data = segments, aes(xmin = start, xmax = end, ymin = -1, ymax =1 , fill = type), alpha = 0.5)+
+  geom_rect(data = isochores, aes(xmin = start, xmax = end, ymin = -1, ymax = 1, color  = type), alpha = 0.1)
+
+
+
+```
+
+
+```{bash}
+
+DESC="Simulation"
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+CONDITIONS="sim"
+
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+
+for SEGMENT in $(ls $FILESDIR/Segments/*_sim.bed); do
+  SEGNAME=$(echo $SEGMENT | rev | cut -d'/' -f 1 | rev | sed "s/\.bed//g")
+  for NAME in $CONDITIONS; do
+    
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$SEGMENT --isochores=$FILESDIR/Isochores/isochores_${NAME}.bed\
+     --annotations=$FILESDIR/Annotations/genomicSuperDups_coords.bed \
+     --workspace=$FILESDIR/Workspace/workspace_${NAME}.bed \
+     --num-samples=1000 --log=$OUTDIR/log/${SEGNAME}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGNAME}_${NAME}.tsv
+
+  done
+done
+# <!-- --     --isochores=$FILESDIR/Isochores/isochores_${NAME}.bed \-->
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+
+for NAME in $CONDITIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+```{r}
+pacman::p_load(reshape2, ggplot2, gridExtra)
+desc<-"Simulation"
+date<-"20220622"
+conditions <-c("sim")
+figscale <- 3
+
+for (condition in conditions){
+  gatResultMerged <- read.table(paste0("analysis/",date,"_LocationPatterns/GATresults/",desc,"/",condition,".tsv"), sep = "\t", header = T)
+  
+  # To add stars
+  gatResultMerged$pstars<-ifelse(gatResultMerged$pvalue <= 0.05, ifelse(gatResultMerged$pvalue <= 0.01, ifelse(gatResultMerged$pvalue<= 0.001, "***", "**"), "*" ),"")
+  gatResultMerged$qstars<-ifelse(gatResultMerged$qvalue <= 0.05, ifelse(gatResultMerged$qvalue <= 0.01, ifelse(gatResultMerged$qvalue<= 0.001, "***", "**"), "*" ),"")
+  
+  gatResultMerged$starpos<-ifelse(gatResultMerged$observed< gatResultMerged$CI95high,gatResultMerged$CI95high,gatResultMerged$observed )
+  
+  gatResultMerged<-merge(gatResultMerged,aggregate(starpos~ annotation, gatResultMerged, "max")  , by = "annotation", all.x = TRUE, suffixes = c(".simple", ".aggregated"))
+  
+  plot1<-ggplot(gatResultMerged, aes(x = track, y = l2fold))+ 
+          geom_bar( stat="identity")+
+          geom_text(aes(x = track, y = max(l2fold), label = pstars), color ="blue")+
+          geom_text(aes(x = track, y = max(l2fold)+1, label = qstars), color = "red")+
+          facet_wrap(annotation  ~ . )+
+          scale_colour_manual(name="Significance",values=c("pvalue", "qvalue"), palette = c("blue", "red"))+
+          ylab("log2( Fold change )")+
+          xlab("Segment tracks")+
+       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+  
+  plot2<- ggplot(gatResultMerged)+
+    geom_pointrange(aes(x = track, y = expected, ymin=CI95low, ymax = CI95high))+
+    geom_point(aes(x = track, y = observed) , shape = 4, size = 3)+
+            geom_text(aes(x = track, y = starpos.aggregated*1.1, label = pstars), color ="blue")+
+          geom_text(aes(x = track, y =  starpos.aggregated*1.2, label = qstars), color = "red")+
+    facet_wrap(annotation  ~ ., scales = "free")+
+     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+            ylab("Annotations overlappifng with segments\n(Nucleotide counts)")+
+          xlab("Segment tracks")+
+          ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
+
+      ggsave(paste0("analysis/",date,"_LocationPatterns/GATresults/",desc,"/",condition,".png"),  grid.arrange(plot1, plot2), width=2480, height=3508, units = "px" , scale = 1.5)
+}
+```
+
+
+```{r}
+inv$size <- inv$chromEnd - inv$chromStart
+
+inv$problematic<-ifelse(inv$nucOverlap > 50000, TRUE, FALSE)
+
+
+ggplot(inv)+geom_point(aes(x = log10(size), y =log10(nucOverlap), color = problematic))
+
+
+ggplot()+geom_density(data = rep[rep$chrom %in% chromnames,], aes(center))+
+  geom_rect(data =isochores_newcomplete, aes(xmin = regstart, xmax = regend, fill = type, ymin = 0, ymax = Inf) , alpha = 0.3)+
+  facet_wrap(chrom ~ ., scales = "free_x")+
+  geom_vline(data = inv, aes(xintercept = (chromStart + chromEnd)/2 , color = problematic))
+
+
+```
+# A LIMPIO 
+
+```{r finescaleSetup}
+
+# Setup
+today <- 20220714
+gatfiledir<-paste0("analysis/",today,"_LocationPatterns/GATfiles/" )
+
+# Frequency threshold
+freq <- 0.2
+
+# Directory
+dir.create(gatfiledir, recursive = T)
+```
+
+Useful function for later: (GAT plots)
+
+
+### The invs info con los repeats
+
+```{r}
+library(ggplot2)
+rep<-read.table("data/genomicSuperDups_coords.bed", header = T)
+inv<-read.table("analysis/20220622_LocationPatterns/GATfiles/Segments/NAHRinvs.bed", header = F)
+invNH<-read.table("analysis/20220622_LocationPatterns/GATfiles/Segments/NHinvs.bed", header = F)
+invNAHR<-read.table("analysis/20220622_LocationPatterns/GATfiles/Segments/NAHRinvs.bed", header = F)
+win<-read.table("analysis/20220622_LocationPatterns/GATfiles/Isochores/genomicSuperDups_COzones_0.09/windows.txt")
+colnames(win)<-c("chrom", "start", "end", "type")
+
+colnames(inv)<-colnames(invNH)<-colnames(invNAHR)<-colnames(rep)
+
+rep$center<-(rep$chromStart+rep$chromEnd)/2
+
+chromnames<- paste0("chr", c(0:22))
+ggplot()+geom_density(data = rep[rep$chrom %in% chromnames,], aes(center))+
+  geom_rect(data =win, aes(xmin = start, xmax = end, fill = type, ymin = 0, ymax = Inf) , alpha = 0.5)+
+  facet_wrap(chrom ~ ., scales = "free_x")+
+  geom_vline(data = invNH, aes(xintercept = (chromStart + chromEnd)/2 ), color = "blue", alpha = 0.5)+
+  geom_vline(data = invNAHR, aes(xintercept = (chromStart + chromEnd)/2 ), color = "red", alpha = 0.5)
+
+
+
+
+inv$density<-
+  apply(inv, 1, function(x){
+       invStart <- as.numeric(x["chromStart"])
+     invEnd<- as.numeric(x["chromEnd"])
+  d<-density(rep[as.character(rep$chrom) == x["chrom"],"center"])
+  val<-mean(approx(d$x, d$y, xout = c(invStart:invEnd))$y)
+  val
+} )
+
+ 
+ inv$nucOverlap<-
+   apply(inv, 1, function(x){
+     invStart <- as.numeric(x["chromStart"])
+     invEnd<- as.numeric(x["chromEnd"])
+     repC<-rep[as.character(rep$chrom) == x["chrom"],]
+     repO<-unique(repC[( (  repC$chromEnd %in% c(invStart:invEnd)  )  | 
+             (  repC$chromStart %in% c(invStart:invEnd) ) | 
+             (  repC$chromStart < invStart&  repC$chromEnd > invEnd )
+            ), ])
+     repO[repO$chromStart < invStart , "chromStart"]<-invStart
+     repO[repO$chromEnd > invEnd , "chromEnd"]<-invEnd
+     
+     repO$size<-repO$chromEnd - repO$chromStart
+     sum(repO$size)
+   })
+ 
+ invNAHR<-inv
+# ---
+ rep<-read.table("data/genomicSuperDups_coords.bed", header = T)
+inv<-read.table("analysis/20220622_LocationPatterns/GATfiles/Segments/NHinvs.bed", header = F)
+
+colnames(inv)<-colnames(rep)
+
+rep$center<-(rep$chromStart+rep$chromEnd)/2
+
+chromnames<- paste0("chr", c(0:22))
+ggplot()+geom_density(data = rep[rep$chrom %in% chromnames,], aes(center))+
+  facet_wrap(chrom ~ ., scales = "free_x")+
+  geom_vline(data = inv, aes(xintercept = (chromStart + chromEnd)/2 ), color = "red", alpha = 0.5)
+
+
+density(rep[rep$chrom %in% chromnames,"center"])
+
+ inv$density<-
+  
+  apply(inv, 1, function(x){
+       invStart <- as.numeric(x["chromStart"])
+     invEnd<- as.numeric(x["chromEnd"])
+  d<-density(rep[as.character(rep$chrom) == x["chrom"],"center"])
+  val<-mean(approx(d$x, d$y, xout = c(invStart:invEnd))$y)
+  val
+} )
+
+  inv$nucOverlap<-
+   apply(inv, 1, function(x){
+     invStart <- as.numeric(x["chromStart"])
+     invEnd<- as.numeric(x["chromEnd"])
+     repC<-rep[as.character(rep$chrom) == x["chrom"],]
+     repO<-unique(repC[( (  repC$chromEnd %in% c(invStart:invEnd)  )  | 
+             (  repC$chromStart %in% c(invStart:invEnd) ) | 
+             (  repC$chromStart < invStart&  repC$chromEnd > invEnd )
+            ), ])
+     repO[repO$chromStart < invStart , "chromStart"]<-invStart
+     repO[repO$chromEnd > invEnd , "chromEnd"]<-invEnd
+     
+     repO$size<-repO$chromEnd - repO$chromStart
+     sum(repO$size)
+   })
+ 
+invNH<-inv
+
+# --
+
+invNAHR$Type<-"NAHR"
+invNH$Type<-"NH"
+inv<-rbind(invNAHR, invNH)
+# inv<-inv[!(inv[,4] %in% c("HsInv0501", "HsInv382", "HsInv786", "HsInv1110", "HsInv0573")),]
+ggplot(inv)+geom_boxplot(aes(x = Type, y = density))
+
+ggplot(inv)+geom_boxplot(aes(x = Type, y = log10(nucOverlap)))
+
+ggplot(inv)+geom_boxplot(aes(x = Type, y = (nucOverlap/(chromEnd - chromStart)  )))
+
+pacman::p_load("Hmisc", "reshape2")
+
+summary((nucOverlap ) ~ Type, data = inv, fun=mean)
+
+hist(log10(inv$nucOverlap))
+```
+
+
+# NH invs analysis por un lado , estas no tienen problema en principio #WORK
+
+```{bash}
+DESC="NHinvs_comparable_i"
+SEGMENTS="NHinvs HFNHinvs LFNHinvs"
+ISOCHORES="isochores_NAHR_All_comparable"
+WORKSPACE="avgBherer"
+ANNOTATIONS="annotations_repeats annotations_avgBherer"
+
+# NO TOCAR ### ----#
+TODAY="20220622"
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+#  ### ----#
+
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $ANNOTATIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --annotations=$FILESDIR/Annotations/${NAME}.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${WORKSPACE}.bed \
+     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \
+     --output-counts-pattern=$OUTDIR/counts/${SEGMENT}_${NAME}%s.tsv.gz\
+     --num-samples=1000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+
+  done
+done
+# <!--     #     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \ -->
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+
+for NAME in $ANNOTATIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+
+```{r}
+desc<-"NHinvs_comparable_i"
+date<-"20220622"
+# conditions <-c("avgBherer", "repeats")
+conditions <-c("annotations_repeats" ,"annotations_avgBherer")
+
+GATplots(desc, date, conditions)
+```
+
+
+### Un poco de análisis de las NAHR invs 
+
+No hay diferencias entre HF y LF para las isocoras
+
+```{r}
+colnames(invNAHR)[4]<-"ID"
+invNAHR$nucDensity<-with(invNAHR,  nucOverlap / ( chromEnd- chromStart ) )
+
+hflist<-read.table("analysis/20220622_LocationPatterns/GATfiles/Segments/HFinvs.bed")
+
+invNAHR$freq<-ifelse(invNAHR$ID %in% hflist[,4], "HF", "LF")
+
+summary(nucDensity ~ freq, invNAHR)
+
+ggplot(invNAHR)+geom_boxplot(aes(x = freq, y = nucDensity))
+
+```
+
+Relacion significativa  logtamaño-densidad de repeats
+
+```{r}
+ggplot(invNAHR, aes(x = log10(chromEnd- chromStart), y = nucDensity, color= freq))+geom_point()+geom_smooth(method = "lm")
+invNAHR$size<-with(invNAHR, chromEnd- chromStart)
+invNAHR$logsize<-log10(invNAHR$size)
+GGally::ggpairs(  data = invNAHR, columns = c(8, 11),  ggplot2::aes(colour=freq))
+
+m<-lm(nucDensity ~ logsize , invNAHR)
+
+summary(m)
+
+library("ggpubr")
+ggscatter(invNAHR, x = "logsize", y = "nucDensity", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson")
+```
+
+
+
+### NAHR that have the same mean nucDensity as NH #WOKR, little sample
+
+```{r}
+colnames(inv)[4]<-"ID"
+inv$nucDensity<-with(inv,  nucOverlap / ( chromEnd- chromStart ) )
+
+# ggplot(inv)+geom_boxplot(aes(x = Type, y = log10(nucOverlap)))
+
+NAHR_NHlike<-invNAHR[invNAHR$nucOverlap <= mean((invNH$nucOverlap)),]
+
+
+write.table(NAHR_NHlike[,c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/NAHR_NHlike.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_NHlike[NAHR_NHlike$freq == "HF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/HFNAHR_NHlike.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_NHlike[NAHR_NHlike$freq == "LF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/LFNAHR_NHlike.bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+```
+
+
+```{bash}
+
+DESC="NAHR_NHlike"
+SEGMENTS="NAHR_NHlike HFNAHR_NHlike LFNAHR_NHlike"
+#ISOCHORES="isochores_calculated"
+WORKSPACE="avgBherer"
+ANNOTATIONS="annotations_repeats annotations_avgBherer"
+
+# NO TOCAR ### ----#
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+# -------###--------#
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $ANNOTATIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --annotations=$FILESDIR/Annotations/${NAME}.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${WORKSPACE}.bed \
+     --num-samples=1000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+
+  done
+done
+# <!--     #     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \ -->
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+
+for NAME in $ANNOTATIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+
+```{r}
+DESC="NAHR_NHlike"
+desc<-"NAHR_NHlike"
+date<-"20220622"
+# conditions <-c("avgBherer", "repeats")
+conditions <-c("annotations_repeats" ,"annotations_avgBherer")
+
+GATplots(desc, date, conditions)
+```
+
+
+### NAHR <=0.47 rep Density #WORK little sample
+
+```{r}
+# colnames(inv)[4]<-"ID"
+# inv$nucDensity<-with(inv,  nucOverlap / ( chromEnd- chromStart ) )
+
+# ggplot(inv)+geom_boxplot(aes(x = Type, y = log10(nucOverlap)))
+
+NAHR_05<-invNAHR[invNAHR$nucDensity <=0.47,]
+
+name<-"NAHR_047"
+write.table(NAHR_05[,c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_05[NAHR_05$freq == "HF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/HF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_05[NAHR_05$freq == "LF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/LF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+```
+
+
+```{bash}
+
+DESC="NAHR_047"
+SEGMENTS="${DESC} HF${DESC} LF${DESC}"
+#ISOCHORES="isochores_calculated"
+WORKSPACE="avgBherer"
+ANNOTATIONS="annotations_repeats annotations_avgBherer"
+
+# NO TOCAR ### ----#
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+# -------###--------#
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $ANNOTATIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --annotations=$FILESDIR/Annotations/${NAME}.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${WORKSPACE}.bed \
+     --num-samples=1000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+
+  done
+done
+# <!--     #     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \ -->
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+
+for NAME in $ANNOTATIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+
+```{r}
+
+desc<-name
+date<-"20220622"
+# conditions <-c("avgBherer", "repeats")
+conditions <-c("annotations_repeats" ,"annotations_avgBherer")
+
+GATplots(desc, date, conditions)
+```
+
+
+
+### Make repeat density for isochores
+
+I make 2.5Mb windows
+```{r}
+#OK let's try to find out regions with similar repeat density
+
+workspace<-win<-read.table("analysis/20220622_LocationPatterns/GATfiles/Workspace/workspace_avgBherer.bed")
+colnames(workspace)<-c("chrom", "start", "end")
+
+# Which is the ideal win size? - 15k
+# prob<-invNAHR[invNAHR$nucOverlap > 50000, ]
+# min(prob$chromEnd - prob$chromStart)
+
+# I divide the genome in 15k windows
+size <-  2.5 * 1000000
+genoWindows<-do.call("rbind", apply(workspace, 1, function(x){
+  v<-seq(x["start"], as.numeric(x["end"])+size, size)
+  starts<-v[1:length(v)-1]
+  ends<-v[2:length(v)]
+  data.frame(x["chrom"], starts, ends)
+}))
+
+colnames(genoWindows)<-colnames(workspace)
+
+# Now I calculate the repeat nucleotide overlap for each of them
+genoWindows$nucOverlap<-   apply(genoWindows, 1, function(x){
+     invStart <- as.numeric(x["start"])
+     invEnd<- as.numeric(x["end"])
+     repC<-rep[as.character(rep$chrom) == x["chrom"],]
+     repO<-unique(repC[( (  repC$chromEnd %in% c(invStart:invEnd)  )  | 
+             (  repC$chromStart %in% c(invStart:invEnd) ) | 
+             (  repC$chromStart < invStart&  repC$chromEnd > invEnd )
+            ), ])
+     repO[repO$chromStart < invStart , "chromStart"]<-invStart
+     repO[repO$chromEnd > invEnd , "chromEnd"]<-invEnd
+     
+     repO$size<-repO$chromEnd - repO$chromStart
+     sum(repO$size)
+   })
+
+#See
+   
+ggplot()+
+  # geom_point(data = genoWindows[genoWindows$nucOverlap > 2272,], aes(x = (end+start)/2, y = nucOverlap) , size = 1, alpha = 0.2)+
+  geom_rect(data = genoWindows, aes(xmin = start, xmax = end, ymin = 0 , ymax = nucOverlap) ,  alpha = 0.2)+
+  geom_hline(yintercept = 2e+06)+
+  # geom_rect(data =isochores_newcomplete, aes(xmin = regstart, xmax = regend, fill = type, ymin = 0, ymax = Inf) , alpha = 0.5)+
+  facet_wrap(chrom ~ ., scales = "free_x")+
+   geom_vline(data = inv, aes(xintercept = (chromStart + chromEnd)/2 , color = problematic, linetype = Type))+
+   geom_rect(data = inv, aes(xmin = chromStart, xmax = chromEnd, ymin = 0 , ymax = Inf, fill = problematic), alpha = 0.2)+
+  ggtitle("test")
+```
+
+Function to make isochores
+```{r}
+# I put a threshold and calculate high repeat regions
+isoCreator<-function(densList, name){
+
+winSize<-2.5*1000000
+genoWindows$nucDensity <- genoWindows$nucOverlap / winSize
+
+genoWindows$isochore<-"Low"
+for(i in densList){
+  genoWindows[genoWindows$nucDensity >= i, "isochore"]<- paste0("High",sub("\\.", "", i))
+}
+  
+write.table(genoWindows[,c("chrom", "start", "end", "isochore")], paste0(gatfiledir,"/Isochores/isochores_",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+}
+
+isoCreatorOve<-function(densList, name){
+
+winSize<-2.5*1000000
+genoWindows$nucDensity <- genoWindows$nucOverlap / winSize
+
+genoWindows$isochore<-"Low"
+for(i in densList){
+  genoWindows[genoWindows$nucOverlap >= i, "isochore"]<- paste0("High",sub("\\.", "", i))
+}
+  
+write.table(genoWindows[,c("chrom", "start", "end", "isochore")], paste0(gatfiledir,"/Isochores/isochores_",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+}
+```
+
+
+### Test isochores
+
+#### BigInvs
+```{r}
+#Set inversion to test
+NAHR_05<-invNAHR[invNAHR$nucDensity >=3.9,]
+
+name<-"NAHR_Big"
+write.table(NAHR_05[,c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_05[NAHR_05$freq == "HF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/HF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_05[NAHR_05$freq == "LF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/LF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# Set isochores to test
+isoCreator(c(2.8,0.8), name)
+
+# Plot old available
+
+
+```
+
+
+```{bash}
+
+DESC="NAHR_Big"
+SEGMENTS="${DESC} HF${DESC} LF${DESC}"
+ISOCHORES="isochores_${DESC}"
+WORKSPACE="avgBherer"
+ANNOTATIONS="annotations_repeats annotations_avgBherer"
+
+# NO TOCAR ### ----#
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+# -------###--------#
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $ANNOTATIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \
+     --annotations=$FILESDIR/Annotations/${NAME}.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${WORKSPACE}.bed \
+     --num-samples=1000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+
+  done
+done
+# <!--     #     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \ -->
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+
+for NAME in $ANNOTATIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+
+```{r}
+desc<-name
+date<-"20220622"
+# conditions <-c("avgBherer", "repeats")
+conditions <-c("annotations_repeats" ,"annotations_avgBherer")
+
+GATplots(desc, date, conditions)
+```
+
+
+#### MediumInvs
+```{r}
+#Set inversion to test
+NAHR_05<-invNAHR[invNAHR$nucDensity <= 1.2 | invNAHR$nucDensity >= 2.5  ,]
+# NAHR_05<-invNAHR[invNAHR$nucDensity >= 2.5 ,]
+
+name<-"NAHR_Med"
+write.table(NAHR_05[,c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_05[NAHR_05$freq == "HF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/HF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_05[NAHR_05$freq == "LF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/LF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# Set isochores to test
+isoCreator(c( 0.05, 0.8,1.8, 2.8), name)
+
+# Plot old available
+
+
+```
+
+
+```{bash}
+
+DESC="NAHR_Med"
+SEGMENTS="${DESC} HF${DESC} LF${DESC}"
+ISOCHORES="isochores_${DESC}"
+WORKSPACE="avgBherer"
+ANNOTATIONS="annotations_repeats annotations_avgBherer"
+
+# NO TOCAR ### ----#
+TODAY=$(date +'%Y%m%d')
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+# -------###--------#
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $ANNOTATIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \
+     --annotations=$FILESDIR/Annotations/${NAME}.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${WORKSPACE}.bed \
+     --num-samples=1000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+
+  done
+done
+# <!--     #     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \ -->
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+
+for NAME in $ANNOTATIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+
+```{r}
+desc<-name
+date<-"20220622"
+# conditions <-c("avgBherer", "repeats")
+conditions <-c("annotations_repeats" ,"annotations_avgBherer")
+
+GATplots(desc, date, conditions)
+```
+
+
+#### AllInvs
+```{r}
+#Set inversion to test
+NAHR_05<-invNAHR[invNAHR$nucDensity <= 1.6 | invNAHR$nucDensity >= 1.7  ,]
+# NAHR_05<-invNAHR[invNAHR$nucDensity >= 2.5 ,]
+
+name<-"NAHR_All"
+write.table(NAHR_05[,c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_05[NAHR_05$freq == "HF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/HF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_05[NAHR_05$freq == "LF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/LF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# Set isochores to test
+isoCreator(c( 0.05, 0.8,1.6, 2.8), name)
+
+# Plot old available
+
+
+```
+
+
+```{bash}
+
+DESC="NAHR_All"
+SEGMENTS="${DESC} HF${DESC} LF${DESC}"
+ISOCHORES="isochores_${DESC}"
+WORKSPACE="avgBherer"
+ANNOTATIONS="annotations_repeats annotations_avgBherer"
+
+# NO TOCAR ### ----#
+TODAY="20220622"
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+# -------###--------#
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $ANNOTATIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \
+     --annotations=$FILESDIR/Annotations/${NAME}.bed\
+     --workspace=$FILESDIR/Workspace/workspace_${WORKSPACE}.bed \
+     --num-samples=1000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+
+  done
+done
+# <!--     #     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \ -->
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+
+for NAME in $ANNOTATIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+
+```{r}
+desc<-name
+date<-"20220622"
+# conditions <-c("avgBherer", "repeats")
+conditions <-c("annotations_repeats" ,"annotations_avgBherer")
+
+GATplots(desc, date, conditions)
+```
+
+
+
+# AllInvs_toCompare
+
+```{r}
+#Set inversion to test
+NAHR_05<-invNAHR[invNAHR$nucDensity <= 1.6 | invNAHR$nucDensity >= 1.7  ,]
+# NAHR_05<-invNAHR[invNAHR$nucDensity >= 2.5 ,]
+
+name<-"NAHR_All_comparable"
+write.table(NAHR_05[,c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_05[NAHR_05$freq == "HF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/HF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+write.table(NAHR_05[NAHR_05$freq == "LF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/LF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F)
+
+# Set isochores to test
+isoCreator(c( 0.05, 0.8,1.6, 2.8), name)
+
+# Plot old available
+
+
+```
+
+
+```{bash}
+
+DESC="NAHR_All_comparable"
+SEGMENTS="${DESC} HF${DESC} LF${DESC}"
+ISOCHORES="isochores_${DESC}"
+WORKSPACE="avgBherer"
+ANNOTATIONS="annotations_repeats annotations_avgBherer"
+
+# NO TOCAR ### ----#
+TODAY="20220622"
+USE=$TODAY
+FILESDIR=analysis/${USE}_LocationPatterns/GATfiles
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv
+# -------###--------#
+
+for SEGMENT in $SEGMENTS; do
+  for NAME in $ANNOTATIONS; do
+     /home/rgomez/anaconda3/bin/gat-run.py  \
+     --segments=$FILESDIR/Segments/${SEGMENT}.bed \
+     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \
+     --annotations=$FILESDIR/Annotations/${NAME}.bed\
+     --output-counts-pattern=$OUTDIR/counts/${SEGMENT}_${NAME}%s.tsv.gz\
+     --workspace=$FILESDIR/Workspace/workspace_${WORKSPACE}.bed \
+     --num-samples=1000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv
+
+  done
+done
+# <!--     #     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \ -->
+OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC}
+
+for NAME in $ANNOTATIONS; do
+  HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1)
+  head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv
+  for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do
+    TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1)
+    tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv
+  done
+done
+
+```
+
+
+```{r}
+desc<-name
+date<-"20220622"
+# conditions <-c("avgBherer", "repeats")
+conditions <-c("annotations_repeats" ,"annotations_avgBherer")
+
+GATplots(desc, date, conditions)
+```
+
+# General plot ONE FOR ALL
+
+```{r}
+
+names<-c("NAHR_All", "NHinvs")
+feature<-"annotations_avgBherer.tsv"
+
+tab<-data.frame()
+
+for (n in names){
+  tab<-rbind(tab,read.table(paste0("analysis/20220622_LocationPatterns/GATresults/",n, "/", feature), header = T))
+}
+
+tab$freq<-substr(tab$track, 0, 2)
+tab$type<-gsub("HF|LF|invs", "", tab$track)
+  
+tab$pstars<-ifelse(tab$pvalue <= 0.05, ifelse(tab$pvalue <= 0.01, ifelse(tab$pvalue<= 0.001, "***", "**"), "*" ),"")  
+tab$qstars<-ifelse(tab$qvalue <= 0.05, ifelse(tab$qvalue <= 0.01, ifelse(tab$qvalue<= 0.001, "***", "**"), "*" ),"")
+# levels(tab$type)<-c("NAHR", "NH")
+tab$type<-ordered(tab$type, levels = c("NH" ,"NAHR"))
+tab$alphaval<-as.numeric(as.character(factor(tab$pstars, levels =c("", "*", "**", "***"), labels =c( 0.2, 1, 1, 1 ))))
+tab$Frequency<-ifelse(tab$freq == "HF", "High", "Low")
+c<-ggplot(tab[tab$freq %in% c("HF", "LF"),])+geom_bar(aes(y= l2fold , x  = annotation , fill = Frequency, alpha = alphaval), stat = "identity", position = "dodge")+
+  geom_text(aes(x = annotation, y = l2fold, label = pstars, group = freq, color = Frequency), position = position_dodge(width = .9), angle = 90)+
+  scale_x_discrete(  label = c("<0.1%", "<1%", "<10%", ">90%", ">99%", ">99.9%") )+
+  xlab("")+ylab("Fold change")+
+  facet_grid(.~type)+
+   scale_alpha_identity()
+  
+
+ggsave(paste0("hotspots.png"),  c, width=2480, height=3508/3, units = "px" , scale = 1)
+
+
+```
+
+
+<!-- # CEU Spence vs. Bherer vs. O'Reilly paper D: -->
+
+<!-- <!-- START CLEAN --> -->
+
+<!-- Setup -->
+<!-- ```{r finescaleSetup} -->
+
+<!-- # Setup -->
+<!-- today <- 20220714 -->
+<!-- gatfiledir<-paste0("analysis/",today,"_LocationPatterns/GATfiles/" ) -->
+
+<!-- # Frequency threshold -->
+<!-- freq <- 0.2 -->
+
+<!-- # Directory -->
+<!-- dir.create(gatfiledir, recursive = T) -->
+<!-- ``` -->
+<!-- ```{r GATPlotsFunction} -->
+<!-- pacman::p_load(reshape2, ggplot2, gridExtra) -->
+
+<!-- GATplots<-function(desc, date, conditions){ -->
+
+<!-- figscale <- 3 -->
+
+<!-- for (condition in conditions){ -->
+<!--   gatResultMerged <- read.table(paste0("analysis/",date,"_LocationPatterns/GATresults/",desc,"/",condition,".tsv"), sep = "\t", header = T) -->
+
+<!--   # To add stars -->
+<!--   gatResultMerged$pstars<-ifelse(gatResultMerged$pvalue <= 0.05, ifelse(gatResultMerged$pvalue <= 0.01, ifelse(gatResultMerged$pvalue<= 0.001, "***", "**"), "*" ),"") -->
+<!--   gatResultMerged$qstars<-ifelse(gatResultMerged$qvalue <= 0.05, ifelse(gatResultMerged$qvalue <= 0.01, ifelse(gatResultMerged$qvalue<= 0.001, "***", "**"), "*" ),"") -->
+
+<!--   gatResultMerged$starpos<-ifelse(gatResultMerged$observed< gatResultMerged$CI95high,gatResultMerged$CI95high,gatResultMerged$observed ) -->
+
+<!--   gatResultMerged<-merge(gatResultMerged,aggregate(starpos~ annotation, gatResultMerged, "max")  , by = "annotation", all.x = TRUE, suffixes = c(".simple", ".aggregated")) -->
+
+<!--   plot1<-ggplot(gatResultMerged, aes(x = track, y = l2fold))+  -->
+<!--           geom_bar( stat="identity")+ -->
+<!--           geom_text(aes(x = track, y = max(l2fold), label = pstars), color ="blue")+ -->
+<!--           geom_text(aes(x = track, y = max(l2fold)+1, label = qstars), color = "red")+ -->
+<!--           facet_wrap(annotation  ~ . )+ -->
+<!--           scale_colour_manual(name="Significance",values=c("pvalue", "qvalue"), palette = c("blue", "red"))+ -->
+<!--           ylab("log2( Fold change )")+ -->
+<!--           xlab("Segment tracks")+ -->
+<!--        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ -->
+<!--             ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition)) -->
+
+<!--   plot2<- ggplot(gatResultMerged)+ -->
+<!--     geom_pointrange(aes(x = track, y = expected, ymin=CI95low, ymax = CI95high))+ -->
+<!--     geom_point(aes(x = track, y = observed) , shape = 4, size = 3)+ -->
+<!--             geom_text(aes(x = track, y = starpos.aggregated*1.1, label = pstars), color ="blue")+ -->
+<!--           geom_text(aes(x = track, y =  starpos.aggregated*1.2, label = qstars), color = "red")+ -->
+<!--      geom_text(aes(x = track, y =  starpos.aggregated*1.3, label = paste0("N=",track_nsegments )), color = "black")+ -->
+<!--     facet_wrap(annotation  ~ ., scales = "free")+ -->
+<!--      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+ -->
+<!--             ylab("Annotations overlappifng with segments\n(Nucleotide counts)")+ -->
+<!--           xlab("Segment tracks")+ -->
+<!--           ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition)) -->
+
+<!--       ggsave(paste0("analysis/",date,"_LocationPatterns/GATresults/",desc,"/",condition,".png"),  grid.arrange(plot1, plot2), width=2480, height=3508, units = "px" , scale = 1.5) -->
+<!-- } -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- Inversion segments -->
+<!-- ```{r makeSegments} -->
+
+<!-- # Add libraries -->
+<!-- pacman::p_load(vcfR, ggplot2) -->
+
+<!-- # Setup  -->
+<!-- dir.create(paste0(gatfiledir,"/Segments")) -->
+
+<!-- # Read  VCF info -->
+<!-- vcf<-read.vcfR("data/InversionGenotypes_processed/allgenotypes.vcf") -->
+
+<!-- vcfInfo<-vcfR2tidy(vcf, info_only = TRUE)$fix -->
+
+<!-- # Recalculate frquency for del vars -->
+<!-- delinvs<-sub("Del", "",grep("Del", vcfInfo$ID, value =  T) ) -->
+<!-- delinvs<-delinvs[delinvs != "HsInv0030"] -->
+
+<!-- for (var in delinvs) { -->
+
+<!-- vartable<-vcfInfo[vcfInfo$ID == var, c("AC_EUR","AN_EUR")] -->
+<!-- deltable<-vcfInfo[vcfInfo$ID == paste0(var, "Del"), c("AC_EUR","AN_EUR")] -->
+
+<!-- AN_total<-(as.numeric(vartable$AN_EUR) - as.numeric(vartable$AC_EUR)) + as.numeric(vartable$AC_EUR) + as.numeric(deltable$AC_EUR) -->
+
+<!-- vcfInfo[vcfInfo$ID == var, "AF_EUR"]<-as.character(as.numeric(vartable$AC_EUR)/AN_total) -->
+<!-- } -->
+
+<!-- vcfInfo$AF_EUR<-as.numeric(vcfInfo$AF_EUR) -->
+
+<!-- # SELECT A FREQUENCY IN THE SETUP -->
+<!-- # Comparison of selectefd frequency with distribution -->
+
+<!-- ggplot(vcfInfo, aes(x = AF_EUR))+geom_histogram()+ -->
+<!--   geom_vline(xintercept = summary(vcfInfo$AF_EUR)[3], color = "green")+ -->
+<!--   geom_vline(xintercept=summary(vcfInfo$AF_EUR)[4], color = "blue")+ -->
+<!--   geom_vline(xintercept = freq) -->
+
+<!-- # Chromosome format -->
+<!-- vcfInfo$CHROM<-paste0("chr",vcfInfo$CHROM) -->
+
+<!-- # Classification by high-low frequency -->
+<!-- lowfreq<-vcfInfo[vcfInfo$AF_EUR < freq,c("CHROM", "POS", "END", "ID")] -->
+<!-- hifreq<-vcfInfo[vcfInfo$AF_EUR >= freq,c("CHROM", "POS", "END", "ID")] -->
+
+<!-- write.table(lowfreq,paste0(gatfiledir,"/Segments/LFinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(hifreq, paste0(gatfiledir,"/Segments/HFinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(hifreq[hifreq$ID != "HsInv0501",], paste0(gatfiledir,"/Segments/HFno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+
+<!-- # Classification by type -->
+<!-- NH<-vcfInfo[ vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")] -->
+<!-- NAHR<-vcfInfo[ vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")] -->
+
+<!-- write.table(NH,paste0(gatfiledir,"/Segments/NHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(NAHR, paste0(gatfiledir,"/Segments/NAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(NAHR[NAHR$ID != "HsInv0501" ,], paste0(gatfiledir,"/Segments/NAHRno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+
+<!-- # Classification by freq AND type -->
+<!-- LFNH<-vcfInfo[vcfInfo$AF_EUR < freq & vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")] -->
+<!-- LFNAHR<-vcfInfo[vcfInfo$AF_EUR < freq & vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")] -->
+<!-- HFNH<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NH",c("CHROM", "POS", "END", "ID")] -->
+<!-- HFNAHR<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NAHR",c("CHROM", "POS", "END", "ID")] -->
+<!-- HFNAHRno<-vcfInfo[vcfInfo$AF_EUR >= freq & vcfInfo$TYPE == "NAHR" & vcfInfo$ID != "HsInv0501",c("CHROM", "POS", "END", "ID")] -->
+
+<!-- write.table(LFNH, paste0(gatfiledir,"/Segments/LFNHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(LFNAHR, paste0(gatfiledir,"/Segments/LFNAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(HFNH, paste0(gatfiledir,"/Segments/HFNHinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(HFNAHR, paste0(gatfiledir,"/Segments/HFNAHRinvs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(HFNAHRno, paste0(gatfiledir,"/Segments/HFNAHRno501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+
+<!-- # All invs -->
+<!-- ALL<-vcfInfo[,c("CHROM", "POS", "END", "ID")] -->
+<!-- ALLno<-vcfInfo[vcfInfo$ID != "HsInv0501",c("CHROM", "POS", "END", "ID")] -->
+
+<!-- write.table(ALL, paste0(gatfiledir,"/Segments/invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(ALLno, paste0(gatfiledir,"/Segments/no501invs.bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- ``` -->
+
+<!-- Hotspot annotations -->
+<!-- ```{bash makeAnnotations} -->
+<!-- ENVPY="/home/rgomez/anaconda3/bin/python" -->
+<!-- # ANALYSIS WIDOWS: 5 fixed windows, and crossover zones with 0 persistence and 40k simulations (sample size similar to Bell et al.2020) -->
+
+<!-- # Spence CEU map -->
+<!-- $ENVPY code/python/recMapAnnotation.py -l data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/$(date +'%Y%m%d')_LocationPatterns/ -d "CEUSpence" -->
+
+<!-- # Bherer average -->
+<!-- $ENVPY code/python/recMapAnnotation.py -l data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed  -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/$(date +'%Y%m%d')_LocationPatterns/ -d "avgBherer" -->
+
+<!-- # Bherer female -->
+<!-- $ENVPY code/python/recMapAnnotation.py -l data/Bherer_Refined_genetic_map_b37_processed/female_allChr.bed -p 0.001,0.01,0.1,0.999,0.99,0.9 -o analysis/$(date +'%Y%m%d')_LocationPatterns/ -d "femBherer" -->
+
+
+<!-- ``` -->
+
+<!-- Workspace -->
+
+
+
+<!-- ```{bash makeWorkspace} -->
+<!-- TODAY=$(date +'%Y%m%d') -->
+<!-- USE=20220714 -->
+<!-- TODAY=$USE -->
+<!-- CONDITIONS="0.03_1000000" -->
+<!-- mkdir -p "analysis/${TODAY}_LocationPatterns/GATfiles/Workspace/" -->
+
+<!-- grep -v "cen" "analysis/${USE}_LocationPatterns/divideChromosomes/CEUSpence_COzones_${CONDITIONS}/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/${TODAY}_LocationPatterns/GATfiles/Workspace/workspace_CEUSpence.bed" -->
+
+<!-- grep -v "cen" "analysis/${USE}_LocationPatterns/divideChromosomes/avgBherer_COzones_${CONDITIONS}/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/${TODAY}_LocationPatterns/GATfiles/Workspace/workspace_avgBherer.bed" -->
+
+<!-- grep -v "cen" "analysis/${USE}_LocationPatterns/divideChromosomes/femBherer_COzones_${CONDITIONS}/workspace.txt" | awk -v OFS="\t" 'NR>1{print $4,$1,$2}' >  "analysis/${TODAY}_LocationPatterns/GATfiles/Workspace/workspace_femBherer.bed" -->
+
+
+<!-- ``` -->
+
+<!-- Isochores -->
+
+
+<!-- ```{r isoCreatorFunction} -->
+<!-- # I put a threshold and calculate high repeat regions -->
+<!-- isoCreator<-function(densList, name){ -->
+
+<!-- winSize<-2.5*1000000 -->
+<!-- genoWindows$nucDensity <- genoWindows$nucOverlap / winSize -->
+
+<!-- genoWindows$isochore<-"Low" -->
+<!-- for(i in densList){ -->
+<!--   genoWindows[genoWindows$nucDensity >= i, "isochore"]<- paste0("High",sub("\\.", "", i)) -->
+<!-- } -->
+
+<!-- write.table(genoWindows[,c("chrom", "start", "end", "isochore")], paste0(gatfiledir,"/Isochores/isochores_",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- } -->
+
+<!-- isoCreatorOve<-function(densList, name){ -->
+
+<!-- winSize<-2.5*1000000 -->
+<!-- genoWindows$nucDensity <- genoWindows$nucOverlap / winSize -->
+
+<!-- genoWindows$isochore<-"Low" -->
+<!-- for(i in densList){ -->
+<!--   genoWindows[genoWindows$nucOverlap >= i, "isochore"]<- paste0("High",sub("\\.", "", i)) -->
+<!-- } -->
+
+<!-- write.table(genoWindows[,c("chrom", "start", "end", "isochore")], paste0(gatfiledir,"/Isochores/isochores_",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- #Set inversion to test -->
+<!-- NAHR_05<-invNAHR[invNAHR$nucDensity <= 1.6 | invNAHR$nucDensity >= 1.7  ,] -->
+<!-- # NAHR_05<-invNAHR[invNAHR$nucDensity >= 2.5 ,] -->
+
+<!-- name<-"NAHR_All_comparable" -->
+<!-- write.table(NAHR_05[,c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(NAHR_05[NAHR_05$freq == "HF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/HF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+<!-- write.table(NAHR_05[NAHR_05$freq == "LF",c("chrom", "chromStart", "chromEnd")], paste0(gatfiledir,"/Segments/LF",name,".bed"), quote=F, col.names = F, sep = "\t", row.names = F) -->
+
+<!-- # Set isochores to test -->
+<!-- isoCreator(c( 0.05, 0.8,1.6, 2.8), name) -->
+
+<!-- # Plot old available -->
+
+
+<!-- ``` -->
+
+
+<!-- ```{bash} -->
+
+<!-- DESC="NAHR_All_comparable" -->
+<!-- SEGMENTS="${DESC} HF${DESC} LF${DESC}" -->
+<!-- ISOCHORES="isochores_${DESC}" -->
+<!-- WORKSPACE="avgBherer" -->
+<!-- ANNOTATIONS="annotations_repeats annotations_avgBherer" -->
+
+<!-- # NO TOCAR ### ----# -->
+<!-- TODAY="20220622" -->
+<!-- USE=$TODAY -->
+<!-- FILESDIR=analysis/${USE}_LocationPatterns/GATfiles -->
+<!-- OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC} -->
+<!-- mkdir -p  $OUTDIR/log $OUTDIR/counts $OUTDIR/tsv -->
+<!-- # -------###--------# -->
+
+<!-- for SEGMENT in $SEGMENTS; do -->
+<!--   for NAME in $ANNOTATIONS; do -->
+<!--      /home/rgomez/anaconda3/bin/gat-run.py  \ -->
+<!--      --segments=$FILESDIR/Segments/${SEGMENT}.bed \ -->
+<!--      --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \ -->
+<!--      --annotations=$FILESDIR/Annotations/${NAME}.bed\ -->
+<!--      --output-counts-pattern=$OUTDIR/counts/${SEGMENT}_${NAME}%s.tsv.gz\ -->
+<!--      --workspace=$FILESDIR/Workspace/workspace_${WORKSPACE}.bed \ -->
+<!--      --num-samples=1000 --log=$OUTDIR/log/${SEGMENT}_${NAME}.log  --stdout=$OUTDIR/tsv/${SEGMENT}_${NAME}.tsv -->
+
+<!--   done -->
+<!-- done -->
+<!-- # <!--     #     --isochores=$FILESDIR/Isochores/${ISOCHORES}.bed \ --> -->
+<!-- OUTDIR=analysis/${TODAY}_LocationPatterns/GATresults/${DESC} -->
+
+<!-- for NAME in $ANNOTATIONS; do -->
+<!--   HEADERFILE=$(ls $OUTDIR/tsv/* |grep $NAME |head -n1) -->
+<!--   head -n1 $HEADERFILE > $OUTDIR/$NAME.tsv -->
+<!--   for FILE in $(ls $OUTDIR/tsv/* |grep $NAME); do -->
+<!--     TRACK=$(echo $FILE | rev |cut -d"/" -f1 |rev |cut -d "_" -f1) -->
+<!--     tail -n+2 $FILE | sed "s/merged/${TRACK}/g" >> $OUTDIR/$NAME.tsv -->
+<!--   done -->
+<!-- done -->
+
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- desc<-name -->
+<!-- date<-"20220622" -->
+<!-- # conditions <-c("avgBherer", "repeats") -->
+<!-- conditions <-c("annotations_repeats" ,"annotations_avgBherer") -->
+
+<!-- GATplots(desc, date, conditions) -->
+<!-- ``` -->
+
+<!-- # General plot ONE FOR ALL -->
+
+<!-- ```{r} -->
+
+<!-- names<-c("NAHR_All", "NHinvs") -->
+<!-- feature<-"annotations_avgBherer.tsv" -->
+
+<!-- tab<-data.frame() -->
+
+<!-- for (n in names){ -->
+<!--   tab<-rbind(tab,read.table(paste0("analysis/20220622_LocationPatterns/GATresults/",n, "/", feature), header = T)) -->
+<!-- } -->
+
+<!-- tab$freq<-substr(tab$track, 0, 2) -->
+<!-- tab$type<-gsub("HF|LF|invs", "", tab$track) -->
+
+<!-- tab$pstars<-ifelse(tab$pvalue <= 0.05, ifelse(tab$pvalue <= 0.01, ifelse(tab$pvalue<= 0.001, "***", "**"), "*" ),"")   -->
+<!-- tab$qstars<-ifelse(tab$qvalue <= 0.05, ifelse(tab$qvalue <= 0.01, ifelse(tab$qvalue<= 0.001, "***", "**"), "*" ),"") -->
+<!-- # levels(tab$type)<-c("NAHR", "NH") -->
+<!-- tab$type<-ordered(tab$type, levels = c("NH" ,"NAHR")) -->
+<!-- tab$alphaval<-as.numeric(as.character(factor(tab$pstars, levels =c("", "*", "**", "***"), labels =c( 0.2, 1, 1, 1 )))) -->
+<!-- tab$Frequency<-ifelse(tab$freq == "HF", "High", "Low") -->
+<!-- c<-ggplot(tab[tab$freq %in% c("HF", "LF"),])+geom_bar(aes(y= l2fold , x  = annotation , fill = Frequency, alpha = alphaval), stat = "identity", position = "dodge")+ -->
+<!--   geom_text(aes(x = annotation, y = l2fold, label = pstars, group = freq, color = Frequency), position = position_dodge(width = .9), angle = 90)+ -->
+<!--   scale_x_discrete(  label = c("<0.1%", "<1%", "<10%", ">90%", ">99%", ">99.9%") )+ -->
+<!--   xlab("")+ylab("Fold change")+ -->
+<!--   facet_grid(.~type)+ -->
+<!--    scale_alpha_identity() -->
+
+
+<!-- ggsave(paste0("hotspots.png"),  c, width=2480, height=3508/3, units = "px" , scale = 1) -->
+
+
+<!-- ``` -->
+
