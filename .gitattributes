@@ -1,0 +1,3 @@
+code/software/** linguist-vendored
+*.html linguist-detectable=false
+*.Rmd  linguist-detectable
