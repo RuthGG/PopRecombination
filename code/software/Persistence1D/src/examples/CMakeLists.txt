@@ -1,4 +1,0 @@
-add_subdirectory (FilesAndFilters)
-add_subdirectory (MatlabVisualization)
-add_subdirectory (MatplotlibVisualization)
-add_subdirectory (SimpleDataVector)
