@@ -1,3 +1,4 @@
 code/software/** linguist-vendored
+report/test/** linguist-vendored
 *.html linguist-detectable=false
 *.Rmd  linguist-detectable
