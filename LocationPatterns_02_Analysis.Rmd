@@ -283,7 +283,7 @@ names<-c( "NHinvs", "NHinvs_iso", "NAHRinvs","NAHRinvs_iso")
 conditions<-c("avgBherer", "femBherer", "CEUSpence")
 expName<-"_100k_1.5iso"
 tab<-data.frame()
-
+today<-"defTest"
 
 for (n in names){for (feature in conditions){
   subtab<-read.table(paste0("analysis/",today,"_LocationPatterns/GATresults",expName,"/",n, "/", feature, ".tsv"), header = T)
@@ -310,6 +310,11 @@ samplesize<-unique(tab[,c("type", "feature", "Frequency", "track_nsegments")])
 samplesize<-reshape(samplesize, direction = "wide", idvar = c("type", "feature"), timevar = "Frequency")
 samplesize$message<-paste0("HF N=", samplesize$track_nsegments.High, "; LF N=", samplesize$track_nsegments.Low)
 
+# only the important!
+tabSave<-tab
+tab<-tab[tab$feature == "CEUSpence" & tab$annotation %in% c("<1%", "<10%", ">90%", ">99%") &  tab$type %in% c("NAHRinvs_iso", "NHinvs") ,   ]
+samplesizeSave<-samplesize
+samplesize<-samplesize[samplesize$feature == "CEUSpence" & samplesize$type %in%  c("NAHRinvs_iso", "NHinvs"),]
 (
   c<-ggplot(tab[tab$freq %in% c("HF", "LF"),])+geom_bar(aes(y= l2fold , x  = annotation , fill = Frequency, alpha = alphaval), stat = "identity", position = "dodge")+
   geom_text(aes(x = annotation, y = 5, label = pstars, group = freq, color = Frequency), position = position_dodge(width = .9), angle = 90)+
@@ -348,4 +353,17 @@ ggsave( paste0("analysis/",today,"_LocationPatterns/GATresults",expName,"/Genera
 #           xlab("Segment tracks")+
 #           ggtitle(paste0("Summarized GAT result: Inversions vs. ERRs in ",condition))
 
+ p<-
+
+  ggplot(tab[tab$freq %in% c("HF", "LF"),])+
+  geom_bar(aes(y= l2fold , x  = annotation , fill = Frequency, alpha = alphaval), stat = "identity", position = "dodge")+
+  geom_text(aes(x = annotation, y = 5, label = pstars, group = freq, color = Frequency), position = position_dodge(width = .9), angle = 90)+
+  geom_text(data = samplesize, aes(x = Inf, y =  -Inf, label =message ), color = "black",  position = position_dodge(width = 1), vjust = -1.5, hjust = 1.1, size =3)+
+ scale_fill_manual(values=c( "#ab72ab", "#5b93be"))+scale_color_manual(values=c("#ab72ab", "#5b93be"))+
+  xlab("")+ylab("log2 fold change overlap\n(observed/expected)")+
+  # facet_grid(type~.)+
+    facet_grid(.~type)+
+   scale_alpha_identity()+ theme(legend.position="bottom")
+
+ggsave(p, "posterPlot.png", width= 1080, height=  577, units = "px", scale = 1, dpi = 300, device = "png")
 ```

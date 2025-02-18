@@ -131,9 +131,6 @@ for (name in listNames){
 
 ```
 
-
-
-
 ### Segments
 
 ```{r makeSegments}

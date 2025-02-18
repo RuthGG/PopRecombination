@@ -451,15 +451,15 @@ verybiginvs_permutations_all<-sampleGenome(verybiginvs, invs, genome, "all", 100
 Since I will need permutations to compare to, all the following method should be grouped in easy-use functions that take as input inversions coordinates (actual or simulated). 
  I will also need the measurements for the windows outside, in fixed and proportional modes. In Seich Basatena paper they use fixed 0.75Mb = 750kb for a 0.75Mb simulated inv. I could use something near the median inv length, maybe (not the average bc there are very big invs). 
 
-```{r}
+```{bash}
 # args[1]<-"analysis/defTest_LocationPatterns/GATfiles/Segments_byInv/HsInv0501.bed" #Bedfile with invs to analyze
 # args[2]<- 200000 #Confidence interval
 # args[3]<-1000 # Number of samples
 # args[4]<-"analysis/defTest_LocationPatterns/slWins/fillWindowMeasurements/avgBherer/windowData.txt" # POP map in sliding windows made without repeat regions
 # args[5]<-"analysis/defTest_LocationPatterns/slWins/flipped/fillWindowMeasurements/avgBherer/windowData.txt" # PED map in sliding windows made without repeat regions
 
-
-"code/rscript/checkMapValidity.R"
+pwd
+#"code/rscript/checkMapValidity.R"
 ```
 
 ```{bash}
@@ -548,10 +548,21 @@ grid.arrange(a,b)
 toplot<-freqs[freqs$variable == "WAvgRate_min",c("AF_EUR", "Fold_change_pval_ped", "Fold_change_pval_pop")]
 library(reshape2)
 toplot<-melt(toplot)
-levels(toplot$variable)<-c("Pedigree-based map", "Population-based map")
+# levels(toplot$variable)<-c("Pedigree-based map", "Population-based map")
 
 ggplot(toplot, aes(x = as.numeric(AF_EUR), y = value, color =variable , fill = variable))+geom_point()+geom_smooth(method = "lm", alpha = 0.1 )+stat_cor(method = "pearson", label.x = 0.4)+ggtitle("Influence of frequency in CO rate reduction")+labs(x = "Frequency in europeans", y = "p-value of min rec.rate inside/outside ratio")
 
+
+toplot<-freqs[freqs$variable == "WAvgRate",c("AF_EUR", "Fold_change_pval_ped", "Fold_change_pval_pop")]
+toplot<-melt(toplot)
+
+ggplot(toplot, aes(x = as.numeric(AF_EUR), y = value, color =variable , fill = variable))+geom_point()+geom_smooth(method = "lm", alpha = 0.1 )+stat_cor(method = "pearson", label.x = 0.4)+ggtitle("Influence of frequency in CO rate reduction")+labs(x = "Frequency in europeans", y = "p-value of average rec.rate inside/outside ratio")
+
+
+toplot<-freqs[freqs$variable == "WAvgRate_max",c("AF_EUR", "Fold_change_pval_ped", "Fold_change_pval_pop")]
+toplot<-melt(toplot)
+
+ggplot(toplot, aes(x = as.numeric(AF_EUR), y = value, color =variable , fill = variable))+geom_point()+geom_smooth(method = "lm", alpha = 0.1 )+stat_cor(method = "pearson", label.x = 0.4)+ggtitle("Influence of frequency in CO rate reduction")+labs(x = "Frequency in europeans", y = "p-value of max rec.rate inside/outside ratio")
 
 
 ```

@@ -1,6 +1,6 @@
 #!/usr/bin/env python 
 # -*- coding: utf-8 -*-
-
+print("OJO AHORA EL BUFFER YA EXISTE DE ANTES; QUITAR DE AQUI")
 # %% 
 # Import packages
 # -------------------------------

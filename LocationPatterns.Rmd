@@ -132,3 +132,10 @@ done
 
 ```
 
+
+# How is each map affected - good
+
+```{r child = 'LocationPatterns_04_MapValidityTest.Rmd'}
+
+```
+

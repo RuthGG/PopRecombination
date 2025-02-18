@@ -1,0 +1,218 @@
+
+## Summary
+
+This test is to check whether the spence map is biased as LdHat, as Bherer map, or not biased at all.
+There are two analyses:
+* Map vs. map: I compare ped/pop ratios (maximum and minimum) with expectations to make a p-value, and check how extreme are ratios compared to expected for each inversion.
+* In vs. out: I compare (average, maximum and minimum) in/out ratios with expectations to make p-value, and check how the ratio p-value is affected by inversion frequency on each map. 
+
+I have preliminary results for both map vs. map and in vs. out made in a sliding window map, but I also want to compare in vs. out with raw data. Sliding window map will be calculated probabilistically (average of rates weighted by map window size). Inversions containing >80% of a window map will be included in the map vs. map analysis. For the in vs. out analysis, windows at breakpoints can be deleted, also option 2: unless they overlap with >80% of either option, in which case they will be assigned to only in or only out. 
+
+## Analysis
+
+### Setup the directory
+
+```{r}
+load("analysisparams.Rdata")
+outDir<-paste0("analysis/", today, "_LocationPatterns/04_MapValidityTest/")
+dir.create(outDir)
+```
+
+### Make sliding window maps
+
+STEP1 
+Make sliding window map coordinates. We want to use
+- strictly common workspace
+- add centromere confidence interval at least for Spence
+
+This script makes a workspace for Spence and a workspace for Bherer.
+As for 20 oct 2022, the divideChromosomes script adds 15kb at either side of the centromere (30kb).
+after making a workspace for each map, we want to make a consensus map with strictly the overlapping region.
+
+STEP2
+Divide workspace into sliding windows (100kb sliding windows at 10kb intervals). In previous versions of this analysis we took into account repeat regions, but we will keep it simple here. 
+
+STEP3
+Fill windows with information. As for 20 oct 2022, fillWindowMeasurements_avgonly.py takes all overlapping coordinates, cuts overhanging coordinates to fit window, calculates average crossover rate weighing by the proportion each coordinate occupies in the window. 
+
+```{bash}
+
+TODAY="defTest"
+ENVPY="/home/rgomez/anaconda3/bin/python"
+OUTDIR="analysis/${TODAY}_LocationPatterns/04_MapValidityTest"
+
+#### STEP 1 ####
+# MAKE COMMON WORKSPACE + CENTROMERE CI
+
+parallel $ENVPY code/python/divideChromosomes.py -m {1} -b data/cytoBand.txt -f 1 -s 0 -r 0 -o $OUTDIR -d {2} ::: data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed  data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed :::+ avgBherer CEUSpence
+
+WORKDIR="${OUTDIR}/workspace_windows"
+mkdir -p $WORKDIR
+
+parallel grep -v '"cen"' "$OUTDIR/divideChromosomes/{}_fixedArms_1/workspace.txt" '|' awk '-v OFS="\t"' \''NR>1{print $4,$1,$2}'\' '>'  "$WORKDIR/workspace_{}.bed" ::: CEUSpence avgBherer
+
+# Now I want to make a consensus workspace that takes only the common region.
+bedtools intersect -a "$WORKDIR/workspace_CEUSpence.bed" -b "$WORKDIR/workspace_avgBherer.bed" > "$WORKDIR/workspace_common.bed"
+
+#### STEP 2 ####
+# MAKE SLIDING WINDOWS FOR COMMON WORKSPACE
+bedtools makewindows -b "${WORKDIR}/workspace_common.bed" -w 100000 -s 10000  > "${WORKDIR}/slidingWindows.bed"
+echo -e "Chromosome\tStart\tEnd\tChrRegion" > "${WORKDIR}/slidingWindows_header.bed"
+cat "${WORKDIR}/slidingWindows.bed" >> "${WORKDIR}/slidingWindows_header.bed"
+
+#### STEP 3 ####
+MAPDIR="${OUTDIR}/recombinationMap_sliding"
+mkdir -p $MAPDIR
+
+parallel $ENVPY code/python/fillWindowMeasurements_avgonly.py -m {1} -w  "${WORKDIR}/slidingWindows_header.bed" -o ${MAPDIR} -d {2} ::: data/Bherer_Refined_genetic_map_b37_processed/sexavg_allChr.bed data/SpenceSong_hg19_recMaps_processed/CEU_recombination_map_hg19_allChr.bed :::+ Bherermap_sliding Spencemap_sliding
+
+
+```
+
+### Prepare input - inversions
+
+```{r}
+
+# Add libraries
+pacman::p_load(vcfR, ggplot2)
+
+# Setup 
+dir.create(paste0(outDir,"/inversionList"), showWarnings = F)
+
+# Read  VCF info
+vcf<-read.vcfR("data/InversionGenotypes_processed/allgenotypes.vcf")
+vcfInfo<-vcfR2tidy(vcf, info_only = TRUE)$fix
+
+# Remove Del genotypes
+vcfInfo<-data.frame(vcfInfo)
+
+# Reformulate chromosomes
+vcfInfo<-vcfInfo[!grepl("Del", vcfInfo$ID),]
+vcfInfo$Chrom<-paste0("chr", vcfInfo$CHROM)
+
+# Make bedfile
+write.table(vcfInfo[,c("Chrom", "POS", "END", "ID")], paste0(outDir,"inversionList/133invs.bed"), quote = F, sep = "\t", row.names = F, col.names = F)
+
+# Make individual bedifles as well
+for (i in rownames(vcfInfo)){
+  write.table(data.frame(vcfInfo[i,c("Chrom", "POS", "END", "ID")]), paste0(outDir,"inversionList/",vcfInfo[i,"ID"],".bed"), quote = F, sep = "\t", row.names = F, col.names = F)
+}
+```
+
+### Calculate ratios and expectations
+
+
+```{bash}
+
+# This is for sliding window maps, requires 80% of overlap with at least one window for the inversion to be analyzed
+
+mkdir -p "analysis/defTest_LocationPatterns/04_MapValidityTest/ratioExpectations"
+
+parallel  Rscript code/rscript/checkMapValidity_sliding.R {} 200000 1000 0.8 "analysis/defTest_LocationPatterns/04_MapValidityTest/recombinationMap_sliding/fillWindowMeasurements/Bherermap_sliding/windowData.txt" "analysis/defTest_LocationPatterns/04_MapValidityTest/recombinationMap_sliding/fillWindowMeasurements/Spencemap_sliding/windowData.txt" "analysis/defTest_LocationPatterns/04_MapValidityTest/ratioExpectations/{/.}.txt" ::: analysis/defTest_LocationPatterns/04_MapValidityTest/inversionList/HsInv* > "analysis/defTest_LocationPatterns/04_MapValidityTest/ratioExpectations/unanalysed.txt"
+
+
+```
+
+```{bash}
+
+# This is for sliding window maps, requires 80% of overlap with at least one window for the inversion to be analyzed
+
+mkdir -p "analysis/defTest_LocationPatterns/04_MapValidityTest/ratioExpectations_strict"
+
+parallel  Rscript code/rscript/checkMapValidity_sliding.R {} 200000 1000 1 "analysis/defTest_LocationPatterns/04_MapValidityTest/recombinationMap_sliding/fillWindowMeasurements/Bherermap_sliding/windowData.txt" "analysis/defTest_LocationPatterns/04_MapValidityTest/recombinationMap_sliding/fillWindowMeasurements/Spencemap_sliding/windowData.txt" "analysis/defTest_LocationPatterns/04_MapValidityTest/ratioExpectations_strict/{/.}.txt" ::: analysis/defTest_LocationPatterns/04_MapValidityTest/inversionList/HsInv* > "analysis/defTest_LocationPatterns/04_MapValidityTest/ratioExpectations_strict/unanalysed.txt"
+
+
+```
+
+```{r upload_files}
+dir<-"ratioExpectations_strict"
+files<-grep("HsInv",list.files(paste0(outDir, dir, "/")), value = T)
+
+table<-data.frame()
+for (i in files){
+   table<-rbind(table, read.table(paste0(outDir,dir,  "/", i), header = T))
+}
+
+baseCols<-c("inv", "Chromosome", "Start", "End", "CIStart", "CIEnd")
+
+mapmap<-table[,c(baseCols, grep("PedPop", colnames(table), value=T))]
+mapmap<-unique(mapmap)
+inout<-table[,c( grep("PedPop", colnames(table), value=T, invert = T) )]
+```
+
+
+
+### Map vs. map
+I compare ped/pop ratios (average, maximum and minimum) with expectations to make a p-value, and check how extreme are ratios compared to expected for each inversion.
+Sliding windows
+Inversions containing >80% of a window map
+
+```{r}
+
+binomPval<-function( column, threshold, type){
+  samples<-length(column)
+  
+  # If a max has a p-value >= 0.95, it has at must 5% of the distribution > observed; it is within the 5% higher in the dist
+  #If a min has a p-value <= 0.05, it has at must 5% of the distribution < observed; it is within the 5% lower in the dist
+  success<-ifelse(type =="max", sum(column >= 1-threshold), sum(column <= threshold)) 
+  
+  pval<-pbinom(success-1, size = samples, prob = threshold, lower.tail = F) #Probabilidad de n o mas successes (= probabilidad de mas de n-1)
+  
+  pval<-signif(pval,4)
+
+  return(list(s = success, p = pval))
+  }
+    
+# Make table as in the original paper (~al-Basatena2017)
+mapmap["Inversion length (Mb)"]<-round((mapmap$End-mapmap$Start)/1000000, 2)
+mapmap["% of empirical dist. < min ped/pop ratio"]<-mapmap$minPedPop_inside_pval*100
+mapmap["% of empirical dist. > max ped/pop ratio"]<-(1-mapmap$maxPedPop_inside_pval)*100
+
+print(mapmap[order(mapmap$`Inversion length (Mb)`, decreasing = T),c("inv", "Inversion length (Mb)", "% of empirical dist. > max ped/pop ratio", "% of empirical dist. < min ped/pop ratio")])
+
+# Make p-values for the columns - hace lo mismo
+# binomPval(mapmap$`% of empirical dist. < min ped/pop ratio`, 0.05 ,"min")
+# binomPval(mapmap$`% of empirical dist. < min ped/pop ratio`, 0.01 ,"min")
+# binomPval(mapmap$`% of empirical dist. > max ped/pop ratio`, 0.05, "min") #porque esta transformado
+# binomPval(mapmap$`% of empirical dist. > max ped/pop ratio`, 0.01, "min") #porque esta transformado
+
+# Test with original columns
+min05<- binomPval(mapmap$minPedPop_inside_pval, 0.05 ,"min")
+min01<- binomPval(mapmap$minPedPop_inside_pval, 0.01 ,"min")
+max05<- binomPval(mapmap$maxPedPop_inside_pval, 0.05, "max")
+max01<- binomPval(mapmap$maxPedPop_inside_pval, 0.01, "max")
+
+totalinvs<-nrow(mapmap)
+
+sprintf("The enrichment of values in the top 5%% of the empirical minimum ped/pop distribution among inversions has P = %g (%i of %i), and that in the top 1%% has P = %g (%i of %i), assuming binomial distribution.", min05$p, min05$s, totalinvs, min01$p, min01$s, totalinvs)
+
+sprintf("The enrichment of values in the top 5%% of the empirical maximum ped/pop distribution among inversions has P = %g (%i of %i), and that in the top 1%% has P = %g (%i of %i), assuming binomial distribution.", max05$p, max05$s, totalinvs, max01$p, max01$s, totalinvs)
+
+```
+
+
+
+### In vs. out
+I compare (average, maximum and minimum) in/out ratios with expectations to make p-value, and check how the ratio p-value is affected by inversion frequency on each map. 
+Sliding windows and raw data
+option 1: windows at breakpoints can be deleted, also 
+option 2: unless they overlap with >80% of either option, in which case they will be assigned to only in or only out
+
+```{r}
+
+library(vcfR)
+vcf<-read.vcfR("data/InversionGenotypes_processed/allgenotypes.vcf")
+vcfInfo<-vcfR2tidy(vcf, info_only = TRUE)$fix
+
+freqs<-vcfInfo[,c("ID", "AF_EUR", "AF")]
+freqs<-merge( freqs,inout, by.x = "ID", by.y = "inv")
+
+library(ggpubr)
+library(gridExtra)
+
+
+ggplot(freqs, aes(x = as.numeric(AF_EUR), y = Fold_change_inout_pval, color=map, fill = map))+geom_point()+geom_smooth(method = "lm", alpha = 0.1 )+stat_cor(method = "pearson", label.x = 0.4)+ggtitle("Influence of frequency in CO rate reduction")+labs(x = "Frequency in europeans", y = "p-value of min rec.rate inside/outside ratio")+facet_grid(variable~.)+ylim(0,1)
+
+
+```
+
