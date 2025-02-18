@@ -1,4 +1,6 @@
 code/software/** linguist-vendored
 report/test/** linguist-vendored
+.ipynb_checkpoints/** linguist-vendored
+**/.ipynb_checkpoints/** linguist-vendored
 *.html linguist-detectable=false
 *.Rmd  linguist-detectable
